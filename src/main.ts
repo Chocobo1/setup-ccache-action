@@ -151,7 +151,8 @@ export default async function main(): Promise<void> {
     await setOutputVariables();
   }
   catch (error) {
-    Core.setFailed(error.message);
+    if (error instanceof Error)
+      Core.setFailed(error.message);
   }
 }
 main();

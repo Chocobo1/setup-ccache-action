@@ -49,7 +49,8 @@ export default async function main(): Promise<void> {
       Core.info("Skip store cache...");
   }
   catch (error) {
-    Core.setFailed(error.message);
+    if (error instanceof Error)
+      Core.setFailed(error.message);
   }
 }
 main();

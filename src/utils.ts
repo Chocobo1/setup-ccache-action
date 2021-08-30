@@ -36,11 +36,11 @@ export function getCcacheSymlinksPath(): string {
 }
 
 export function getOverrideCacheKey(): string {
-  return valueOr(Core.getInput('override_cache_key'), `ccache-action_${Process.platform}_${Date.now()}`);
+  return valueOr(Core.getInput('override_cache_key'), `setup-ccache-action_${Process.platform}`);
 }
 
 export function getOverrideCacheKeyFallback(): string {
-  return valueOr(Core.getInput('override_cache_key_fallback'), `ccache-action_${Process.platform}`);
+  return valueOr(Core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
 }
 
 export function isSupportedPlatform(): boolean {

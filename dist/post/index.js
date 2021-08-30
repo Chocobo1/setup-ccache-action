@@ -59308,10 +59308,10 @@ function getCcacheSymlinksPath() {
     }
 }
 function getOverrideCacheKey() {
-    return valueOr(core.getInput('override_cache_key'), `ccache-action_${external_process_namespaceObject.platform}_${Date.now()}`);
+    return valueOr(core.getInput('override_cache_key'), `setup-ccache-action_${external_process_namespaceObject.platform}`);
 }
 function getOverrideCacheKeyFallback() {
-    return valueOr(Core.getInput('override_cache_key_fallback'), `ccache-action_${Process.platform}`);
+    return valueOr(Core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
 }
 function isSupportedPlatform() {
     switch (external_process_namespaceObject.platform) {
@@ -59355,7 +59355,7 @@ function saveCache() {
             const paths = [yield getCachePath()];
             for (let i = 0; i < MAX_UPLOAD_RETRIES; ++i) {
                 try {
-                    const key = getOverrideCacheKey();
+                    const key = `${getOverrideCacheKey()}_${Date.now()}`;
                     core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
                     yield cache.saveCache(paths, key);
                     return;

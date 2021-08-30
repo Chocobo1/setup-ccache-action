@@ -59310,10 +59310,10 @@ function getCcacheSymlinksPath() {
     }
 }
 function getOverrideCacheKey() {
-    return valueOr(core.getInput('override_cache_key'), `ccache-action_${external_process_namespaceObject.platform}_${Date.now()}`);
+    return valueOr(core.getInput('override_cache_key'), `setup-ccache-action_${external_process_namespaceObject.platform}`);
 }
 function getOverrideCacheKeyFallback() {
-    return valueOr(core.getInput('override_cache_key_fallback'), `ccache-action_${external_process_namespaceObject.platform}`);
+    return valueOr(core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
 }
 function isSupportedPlatform() {
     switch (external_process_namespaceObject.platform) {

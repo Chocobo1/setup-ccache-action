@@ -1,0 +1,97 @@
+name: Testing
+on: [pull_request, push]
+
+jobs:
+  macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      #- name: Time packager index update
+      #  run: brew update
+
+      - name: Install ccache
+        run: |
+          brew install ccache
+
+      - name: Setup ccache
+        uses: ./
+        with:
+          update_packager_index: false
+          install_ccache: false
+          prepend_symlinks_to_path: false
+          restore_cache: false
+          store_cache: false
+          ccache_options: |
+            max_size=200M
+            compression=false
+            compression_level=3
+
+      - name: Print environment
+        run: |
+          whoami
+          echo ~
+          pwd
+          df -h
+          echo "$PATH"
+          which ccache
+          ccache --version
+          ccache --show-config
+          ccache --show-stats
+          ls -la "/usr/local/opt/ccache/libexec"
+          echo "${{ env.ccache_symlinks_path }}"
+
+      - name: Build test program
+        run: |
+          #export PATH="/usr/local/opt/ccache/libexec:$PATH"
+          g++ ".github/workflows/hello_world.cpp" -o "hello_world"
+          ./hello_world
+
+
+  ubuntu:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Time packager index update
+        run: sudo apt update
+
+      - name: Setup ccache
+        uses: ./
+
+      - name: Print environment
+        run: |
+          whoami
+          echo ~
+          pwd
+          df -h
+          echo "$PATH"
+          which ccache
+          ccache --version
+          ccache --show-config
+          ccache --show-stats
+          ls -la "/usr/lib/ccache"
+          echo "${{ env.ccache_symlinks_path }}"
+
+      - name: Build test program
+        run: |
+          g++ ".github/workflows/hello_world.cpp" -o "hello_world"
+          ./hello_world
+
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup ccache
+        uses: ./

@@ -1,0 +1,40 @@
+{
+  "name": "@Chocobo1/setup-ccache-action",
+  "version": "1.0.0",
+  "description": "Setup ccache on GitHub Actions",
+  "main": "dist/main/index.js",
+  "author": "Chocobo1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chocobo1/setup-ccache-action.git"
+  },
+  "homepage": "https://github.com/Chocobo1/setup-ccache-action",
+  "bugs": "https://github.com/Chocobo1/setup-ccache-action/issues",
+  "keywords": [
+    "c",
+    "cache",
+    "ccache",
+    "ci",
+    "continuous integration",
+    "c++",
+    "GitHub Actions"
+  ],
+  "scripts": {
+    "build": "ncc build src/main.ts -o dist/main && ncc build src/post.ts -o dist/post",
+    "lint": "eslint src/*.ts"
+  },
+  "dependencies": {
+    "@actions/cache": "^1.0.7",
+    "@actions/core": "^1.5.0",
+    "@actions/exec": "^1.1.0",
+    "@actions/io": "^1.1.1"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "*",
+    "@typescript-eslint/parser": "*",
+    "@vercel/ncc": "^0.29.2",
+    "eslint": "*",
+    "typescript": "^4.3.5"
+  }
+}

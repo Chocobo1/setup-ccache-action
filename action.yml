@@ -1,0 +1,66 @@
+name: "setup-ccache-action"
+description: "Setup ccache on GitHub Actions"
+author: "Chocobo1 <https://github.com/Chocobo1>"
+
+inputs:
+  # setup related
+  update_packager_index:
+    description: "By default, this action will update packager's indexes to avoid installation issues
+      (`apt`/`brew` on linux/macOS respectively). You can disable it to save some time however you are then
+      responsible for ensuring the packager's indexes are up-to-date *before* using this action"
+    default: "true"
+    required: false
+
+  install_ccache:
+    description: "By default, this action will install ccache with package manager.
+      You can omit installation if you've already installed ccache and it is accessible in the shell"
+    default: "true"
+    required: false
+
+  prepend_symlinks_to_path:
+    description: "By default, this action will prepend ccache's compiler symlinks directory to PATH so that
+      compiler invocations will be handled by ccache transparently.
+      https://ccache.dev/manual/latest.html#_run_modes"
+    default: "true"
+    required: false
+
+  # store, restore cache
+  restore_cache:
+    description: "Whether to restore the cache at the start of this action"
+    default: "true"
+    required: false
+
+  store_cache:
+    description: "Whether to store the cache at the end of job execution"
+    default: "true"
+    required: false
+
+  # cache key related
+  override_cache_key:
+    description: "Override cache key which is used for storing/retrieving the cache.
+      Leave it empty to use the default value"
+    default: ""
+    required: false
+
+  override_cache_key_fallback:
+    description: "Override additional cache keys for retrieving the cache.
+      Leave it empty to use the default value"
+    default: ""
+    required: false
+
+  # ccache specific
+  ccache_options:
+    description: "Config settings for ccache. Accepts multiline key=value.
+      Ref: https://ccache.dev/manual/latest.html#_configuration_options"
+    default: |
+      max_size=500M
+    required: false
+
+runs:
+  using: "node12"
+  main: "dist/main/index.js"
+  post: "dist/post/index.js"
+
+branding:
+  icon: "package"
+  color: "blue"

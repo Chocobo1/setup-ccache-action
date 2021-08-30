@@ -6,6 +6,11 @@ import * as Path from 'path';
 import * as Process from 'process';
 
 
+interface IOverrideCacheKey {
+  isDefault: boolean,
+  value: string
+}
+
 export async function getCachePath(): Promise<string> {
   const output = await Exec.getExecOutput("ccache --get-config cache_dir", [], { "silent": true });
   if (output.exitCode !== 0)
@@ -35,12 +40,28 @@ export function getCcacheSymlinksPath(): string {
   }
 }
 
-export function getOverrideCacheKey(): string {
-  return valueOr(Core.getInput('override_cache_key'), `setup-ccache-action_${Process.platform}`);
+export function getOverrideCacheKey(): IOverrideCacheKey {
+  const key = Core.getInput('override_cache_key');
+  return {
+    isDefault: (key.length == 0),
+    value: (key.length > 0) ? key : `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`
+  };
 }
 
-export function getOverrideCacheKeyFallback(): string {
-  return valueOr(Core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
+export function getOverrideCacheKeyFallback(): string[] {
+  const fallbackKey = Core.getMultilineInput('override_cache_key_fallback');
+  if (fallbackKey.length > 0)
+    return fallbackKey;
+
+  const cacheKey = getOverrideCacheKey();
+  if (!cacheKey.isDefault)
+    return [cacheKey.value];
+
+  return [
+    `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`,
+    `setup-ccache-action_${Process.env.RUNNER_OS}`,
+    "setup-ccache-action"
+  ];
 }
 
 export function isSupportedPlatform(): boolean {
@@ -60,8 +81,4 @@ export function removeCcacheConfig(): void {
   catch (error) {
     // silence it
   }
-}
-
-function valueOr(value: string, fallback: string): string {
-  return (value.length > 0) ? value : fallback;
 }

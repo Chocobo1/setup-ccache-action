@@ -37,15 +37,15 @@ inputs:
 
   # cache key related
   override_cache_key:
-    description: "Override cache key which is used for storing/retrieving the cache.
+    description: "Override cache key which is used for storing/retrieving the cache. Accept a string.
       Leave it empty to use the default value"
     default: ""
     required: false
 
   override_cache_key_fallback:
-    description: "Override additional cache keys for retrieving the cache.
+    description: "Override additional cache keys for retrieving the cache. Accept a list of strings.
       Leave it empty to use the default value"
-    default: ""
+    default: |
     required: false
 
   # ccache specific

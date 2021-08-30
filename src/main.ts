@@ -74,8 +74,8 @@ async function installCcache() {
 async function restoreCache() {
   await Core.group("Restore cache", async () => {
     const paths = [await Utils.getCachePath()];
-    const primaryKey = Utils.getOverrideCacheKey();
-    const restoreKeys = [primaryKey, Utils.getOverrideCacheKeyFallback()];
+    const primaryKey = Utils.getOverrideCacheKey().value;
+    const restoreKeys = Utils.getOverrideCacheKeyFallback();
 
     Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
     const cachePath = await Cache.restoreCache(paths, primaryKey, restoreKeys);

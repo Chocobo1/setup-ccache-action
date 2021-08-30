@@ -59308,10 +59308,24 @@ function getCcacheSymlinksPath() {
     }
 }
 function getOverrideCacheKey() {
-    return valueOr(core.getInput('override_cache_key'), `setup-ccache-action_${external_process_namespaceObject.platform}`);
+    const key = core.getInput('override_cache_key');
+    return {
+        isDefault: (key.length == 0),
+        value: (key.length > 0) ? key : `setup-ccache-action_${external_process_namespaceObject.env.RUNNER_OS}_${external_process_namespaceObject.env.GITHUB_JOB}`
+    };
 }
 function getOverrideCacheKeyFallback() {
-    return valueOr(Core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
+    const fallbackKey = Core.getMultilineInput('override_cache_key_fallback');
+    if (fallbackKey.length > 0)
+        return fallbackKey;
+    const cacheKey = getOverrideCacheKey();
+    if (!cacheKey.isDefault)
+        return [cacheKey.value];
+    return [
+        `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`,
+        `setup-ccache-action_${Process.env.RUNNER_OS}`,
+        "setup-ccache-action"
+    ];
 }
 function isSupportedPlatform() {
     switch (external_process_namespaceObject.platform) {
@@ -59328,9 +59342,6 @@ function removeCcacheConfig() {
     }
     catch (error) {
     }
-}
-function valueOr(value, fallback) {
-    return (value.length > 0) ? value : fallback;
 }
 
 ;// CONCATENATED MODULE: ./src/post.ts
@@ -59355,7 +59366,7 @@ function saveCache() {
             const paths = [yield getCachePath()];
             for (let i = 0; i < MAX_UPLOAD_RETRIES; ++i) {
                 try {
-                    const key = `${getOverrideCacheKey()}_${Date.now()}`;
+                    const key = `${getOverrideCacheKey().value}_${Date.now()}`;
                     core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
                     yield cache.saveCache(paths, key);
                     return;

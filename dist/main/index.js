@@ -59310,10 +59310,24 @@ function getCcacheSymlinksPath() {
     }
 }
 function getOverrideCacheKey() {
-    return valueOr(core.getInput('override_cache_key'), `setup-ccache-action_${external_process_namespaceObject.platform}`);
+    const key = core.getInput('override_cache_key');
+    return {
+        isDefault: (key.length == 0),
+        value: (key.length > 0) ? key : `setup-ccache-action_${external_process_namespaceObject.env.RUNNER_OS}_${external_process_namespaceObject.env.GITHUB_JOB}`
+    };
 }
 function getOverrideCacheKeyFallback() {
-    return valueOr(core.getInput('override_cache_key_fallback'), `setup-ccache-action`);
+    const fallbackKey = core.getMultilineInput('override_cache_key_fallback');
+    if (fallbackKey.length > 0)
+        return fallbackKey;
+    const cacheKey = getOverrideCacheKey();
+    if (!cacheKey.isDefault)
+        return [cacheKey.value];
+    return [
+        `setup-ccache-action_${external_process_namespaceObject.env.RUNNER_OS}_${external_process_namespaceObject.env.GITHUB_JOB}`,
+        `setup-ccache-action_${external_process_namespaceObject.env.RUNNER_OS}`,
+        "setup-ccache-action"
+    ];
 }
 function isSupportedPlatform() {
     switch (external_process_namespaceObject.platform) {
@@ -59330,9 +59344,6 @@ function removeCcacheConfig() {
     }
     catch (error) {
     }
-}
-function valueOr(value, fallback) {
-    return (value.length > 0) ? value : fallback;
 }
 
 ;// CONCATENATED MODULE: ./src/main.ts
@@ -59415,8 +59426,8 @@ function restoreCache() {
     return main_awaiter(this, void 0, void 0, function* () {
         yield core.group("Restore cache", () => main_awaiter(this, void 0, void 0, function* () {
             const paths = [yield getCachePath()];
-            const primaryKey = getOverrideCacheKey();
-            const restoreKeys = [primaryKey, getOverrideCacheKeyFallback()];
+            const primaryKey = getOverrideCacheKey().value;
+            const restoreKeys = getOverrideCacheKeyFallback();
             core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
             const cachePath = yield cache.restoreCache(paths, primaryKey, restoreKeys);
             core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");

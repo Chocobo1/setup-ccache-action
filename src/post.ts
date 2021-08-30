@@ -18,7 +18,7 @@ async function saveCache() {
     // https://github.com/actions/cache/blob/6bbe742add91b3db4abf110e742a967ec789958f/src/save.ts#L39-L44
     for (let i = 0; i < MAX_UPLOAD_RETRIES; ++i) {
       try {
-        const key = `${Utils.getOverrideCacheKey()}_${Date.now()}`;
+        const key = `${Utils.getOverrideCacheKey().value}_${Date.now()}`;
         Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
 
         await Cache.saveCache(paths, key);

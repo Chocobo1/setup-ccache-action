@@ -50,7 +50,7 @@ inputs:
 
   # ccache specific
   ccache_options:
-    description: "Config settings for ccache. Accepts multiline key=value.
+    description: "Config settings for ccache. Accept a list of key=value pairs.
       Ref: https://ccache.dev/manual/latest.html#_configuration_options"
     default: |
       max_size=500M

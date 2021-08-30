@@ -18,6 +18,7 @@ jobs:
           brew install ccache
 
       - name: Setup ccache
+        id: setup_ccache
         uses: ./
         with:
           update_packager_index: false
@@ -43,6 +44,7 @@ jobs:
           ccache --show-stats
           ls -la "/usr/local/opt/ccache/libexec"
           echo "${{ env.ccache_symlinks_path }}"
+          echo "${{ steps.setup_ccache.outputs.cache_hit }}"
 
       - name: Build test program
         run: |
@@ -63,6 +65,7 @@ jobs:
         run: sudo apt update
 
       - name: Setup ccache
+        id: setup_ccache
         uses: ./
 
       - name: Print environment
@@ -78,6 +81,7 @@ jobs:
           ccache --show-stats
           ls -la "/usr/lib/ccache"
           echo "${{ env.ccache_symlinks_path }}"
+          echo "${{ steps.setup_ccache.outputs.cache_hit }}"
 
       - name: Build test program
         run: |

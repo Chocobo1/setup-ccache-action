@@ -71,8 +71,8 @@ async function installCcache() {
   });
 }
 
-async function restoreCache() {
-  await Core.group("Restore cache", async () => {
+async function restoreCache(): Promise<boolean> {
+  return await Core.group("Restore cache", async (): Promise<boolean> => {
     const paths = [await Utils.getCachePath()];
     const primaryKey = Utils.getOverrideCacheKey().value;
     const restoreKeys = Utils.getOverrideCacheKeyFallback();
@@ -80,6 +80,7 @@ async function restoreCache() {
     Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
     const cachePath = await Cache.restoreCache(paths, primaryKey, restoreKeys);
     Core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
+    return (cachePath ? true : false);
   });
 }
 
@@ -132,10 +133,15 @@ export default async function main(): Promise<void> {
 
     await checkCcacheAvailability();
 
+    let cacheHit = false;
     if (Core.getBooleanInput("restore_cache"))
-      await restoreCache();
+      cacheHit = await restoreCache();
     else
       Core.info("Skip restore cache...");
+
+    await Core.group(`Set output variable: cache_hit="${cacheHit}"`, async () => {
+      Core.setOutput("cache_hit", cacheHit.toString());
+    });
 
     await configureCcache();
 

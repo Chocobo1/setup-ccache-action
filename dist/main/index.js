@@ -59424,13 +59424,14 @@ function installCcache() {
 }
 function restoreCache() {
     return main_awaiter(this, void 0, void 0, function* () {
-        yield core.group("Restore cache", () => main_awaiter(this, void 0, void 0, function* () {
+        return yield core.group("Restore cache", () => main_awaiter(this, void 0, void 0, function* () {
             const paths = [yield getCachePath()];
             const primaryKey = getOverrideCacheKey().value;
             const restoreKeys = getOverrideCacheKeyFallback();
             core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
             const cachePath = yield cache.restoreCache(paths, primaryKey, restoreKeys);
             core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
+            return (cachePath ? true : false);
         }));
     });
 }
@@ -59479,10 +59480,14 @@ function main() {
             else
                 core.info("Skip install ccache...");
             yield checkCcacheAvailability();
+            let cacheHit = false;
             if (core.getBooleanInput("restore_cache"))
-                yield restoreCache();
+                cacheHit = yield restoreCache();
             else
                 core.info("Skip restore cache...");
+            yield core.group(`Set output variable: cache_hit="${cacheHit}"`, () => main_awaiter(this, void 0, void 0, function* () {
+                core.setOutput("cache_hit", cacheHit.toString());
+            }));
             yield configureCcache();
             yield core.group("Clear ccache statistics", () => main_awaiter(this, void 0, void 0, function* () {
                 yield exec.exec("ccache --zero-stats");

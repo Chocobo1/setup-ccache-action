@@ -56,6 +56,10 @@ inputs:
       max_size=500M
     required: false
 
+outputs:
+  cache_hit:
+    description: "This variable will be set to `true` when there is an cache hit, otherwise `false`"
+
 runs:
   using: "node12"
   main: "dist/main/index.js"

@@ -1,6 +1,6 @@
 {
   "name": "@Chocobo1/setup-ccache-action",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Setup ccache on GitHub Actions",
   "main": "dist/main/index.js",
   "author": "Chocobo1",

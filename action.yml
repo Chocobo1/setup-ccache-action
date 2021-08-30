@@ -1,4 +1,4 @@
-name: "setup-ccache-action"
+name: "Setup ccache action"
 description: "Setup ccache on GitHub Actions"
 author: "Chocobo1 <https://github.com/Chocobo1>"
 

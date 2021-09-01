@@ -109,4 +109,4 @@ For description of all options, take a look at [action.yml](action.yml).
 
 ## Limitations
 This action only support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
-Running on Windows is **not** supported. \
+Running on Windows is **not** supported.

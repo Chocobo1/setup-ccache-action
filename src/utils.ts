@@ -12,10 +12,18 @@ interface IOverrideCacheKey {
 }
 
 export async function getCachePath(): Promise<string> {
-  const output = await Exec.getExecOutput("ccache --get-config cache_dir", [], { "silent": true });
-  if (output.exitCode !== 0)
-    Core.warning(`getCachePath() failed: "${output}"`);
-  return output.stdout.trim();
+  const execOptions = {
+    "ignoreReturnCode": true,
+    "silent": true
+  };
+
+  const getOutput = await Exec.getExecOutput("ccache --get-config cache_dir", [], execOptions);
+  if (getOutput.exitCode === 0)
+    return getOutput.stdout.trim();
+
+  // parse the output manually since `--get-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
+  const configOutput = await Exec.getExecOutput("ccache -p", [], execOptions);
+  return configOutput.stdout.match(/(?<=cache_dir = ).+/)![0].trim();
 }
 
 export function getCcacheConfigPath(): string {

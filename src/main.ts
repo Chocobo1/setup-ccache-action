@@ -50,7 +50,8 @@ async function configureCcache() {
       }
     }
 
-    await Exec.exec("ccache --show-config");
+    // `--show-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
+    await Exec.exec("ccache -p");
   });
 }
 

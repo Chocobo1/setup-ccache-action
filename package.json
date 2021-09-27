@@ -33,8 +33,8 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "*",
     "@typescript-eslint/parser": "*",
-    "@vercel/ncc": "^0.30.0",
+    "@vercel/ncc": "^0.31.1",
     "eslint": "*",
-    "typescript": "^4.4.2"
+    "typescript": "^4.4.3"
   }
 }

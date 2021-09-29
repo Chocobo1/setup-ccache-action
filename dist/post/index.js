@@ -58217,6 +58217,18 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 
 
+function getDefaultCacheKeys() {
+    const env = external_process_namespaceObject.env;
+    const keys = [
+        "setup-ccache-action",
+        env.GITHUB_WORKFLOW,
+        env.GITHUB_JOB,
+        env.ImageOS
+    ];
+    if (env.GITHUB_HEAD_REF.length > 0)
+        keys.push(`${env.GITHUB_ACTOR}-${env.GITHUB_HEAD_REF}`);
+    return keys;
+}
 function getCachePath() {
     return __awaiter(this, void 0, void 0, function* () {
         const execOptions = {
@@ -58254,7 +58266,7 @@ function getOverrideCacheKey() {
     const key = core.getInput('override_cache_key');
     return {
         isDefault: (key.length == 0),
-        value: (key.length > 0) ? key : `setup-ccache-action_${external_process_namespaceObject.env.RUNNER_OS}_${external_process_namespaceObject.env.GITHUB_JOB}`
+        value: (key.length > 0) ? key : getDefaultCacheKeys().join('_')
     };
 }
 function getOverrideCacheKeyFallback() {
@@ -58264,11 +58276,10 @@ function getOverrideCacheKeyFallback() {
     const cacheKey = getOverrideCacheKey();
     if (!cacheKey.isDefault)
         return [cacheKey.value];
-    return [
-        `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`,
-        `setup-ccache-action_${Process.env.RUNNER_OS}`,
-        "setup-ccache-action"
-    ];
+    return getDefaultCacheKeys().reduceRight((acc, _, index, array) => {
+        acc.push(array.slice(0, (index + 1)).join('_'));
+        return acc;
+    }, []);
 }
 function isSupportedPlatform() {
     switch (external_process_namespaceObject.platform) {

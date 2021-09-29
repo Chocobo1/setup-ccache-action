@@ -35,6 +35,7 @@ jobs:
         run: |
           whoami
           echo ~
+          env
           pwd
           df -h
           echo "$PATH"
@@ -72,6 +73,7 @@ jobs:
         run: |
           whoami
           echo ~
+          env
           pwd
           df -h
           echo "$PATH"

@@ -11,6 +11,22 @@ interface IOverrideCacheKey {
   value: string
 }
 
+function getDefaultCacheKeys(): string[] {
+  const env = Process.env;
+  const keys = [
+    "setup-ccache-action",
+    env.GITHUB_WORKFLOW!,
+    env.GITHUB_JOB!,
+    env.ImageOS!
+  ];
+
+  // let PR have its own cache series
+  if (env.GITHUB_HEAD_REF!.length > 0)
+    keys.push(`${env.GITHUB_ACTOR}-${env.GITHUB_HEAD_REF}`);
+
+  return keys;
+}
+
 export async function getCachePath(): Promise<string> {
   const execOptions = {
     "ignoreReturnCode": true,
@@ -52,7 +68,7 @@ export function getOverrideCacheKey(): IOverrideCacheKey {
   const key = Core.getInput('override_cache_key');
   return {
     isDefault: (key.length == 0),
-    value: (key.length > 0) ? key : `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`
+    value: (key.length > 0) ? key : getDefaultCacheKeys().join('_')
   };
 }
 
@@ -65,11 +81,10 @@ export function getOverrideCacheKeyFallback(): string[] {
   if (!cacheKey.isDefault)
     return [cacheKey.value];
 
-  return [
-    `setup-ccache-action_${Process.env.RUNNER_OS}_${Process.env.GITHUB_JOB}`,
-    `setup-ccache-action_${Process.env.RUNNER_OS}`,
-    "setup-ccache-action"
-  ];
+  return getDefaultCacheKeys().reduceRight((acc, _, index, array) => {
+    acc.push(array.slice(0, (index + 1)).join('_'));
+    return acc;
+  }, [] as string[]);
 }
 
 export function isSupportedPlatform(): boolean {

@@ -58285,8 +58285,6 @@ var cache = __nccwpck_require__(7799);
 var core = __nccwpck_require__(2186);
 // EXTERNAL MODULE: ./node_modules/@actions/exec/lib/exec.js
 var exec = __nccwpck_require__(1514);
-// EXTERNAL MODULE: ./node_modules/@actions/io/lib/io.js
-var io = __nccwpck_require__(7436);
 ;// CONCATENATED MODULE: external "process"
 const external_process_namespaceObject = require("process");
 // EXTERNAL MODULE: external "fs"
@@ -58329,22 +58327,31 @@ function getCachePath() {
             "ignoreReturnCode": true,
             "silent": true
         };
-        const getOutput = yield exec.getExecOutput("ccache --get-config cache_dir", [], execOptions);
+        const getOutput = yield exec.getExecOutput(platformExecWrap("ccache --get-config cache_dir"), [], execOptions);
         if (getOutput.exitCode === 0)
             return getOutput.stdout.trim();
-        const configOutput = yield exec.getExecOutput("ccache -p", [], execOptions);
+        const configOutput = yield exec.getExecOutput(platformExecWrap("ccache -p"), [], execOptions);
         return configOutput.stdout.match(/(?<=cache_dir = ).+/)[0].trim();
     });
 }
 function getCcacheConfigPath() {
-    switch (external_process_namespaceObject.platform) {
-        case 'darwin':
-            return external_path_.join(external_os_.homedir(), "Library/Preferences/ccache/ccache.conf");
-        case 'linux':
-            return external_path_.join(external_os_.homedir(), ".ccache", "ccache.conf");
-        default:
-            return "";
-    }
+    return __awaiter(this, void 0, void 0, function* () {
+        switch (external_process_namespaceObject.platform) {
+            case 'darwin':
+                return external_path_.join(external_os_.homedir(), "Library/Preferences/ccache/ccache.conf");
+            case 'linux':
+                return external_path_.join(external_os_.homedir(), ".ccache", "ccache.conf");
+            case 'win32':
+                switch (core.getInput("windows_compile_environment")) {
+                    case 'msys2':
+                        return external_path_.join(yield getCachePath(), "ccache.conf");
+                    default:
+                        return "";
+                }
+            default:
+                return "";
+        }
+    });
 }
 function getCcacheSymlinksPath() {
     switch (external_process_namespaceObject.platform) {
@@ -58352,6 +58359,13 @@ function getCcacheSymlinksPath() {
             return "/usr/local/opt/ccache/libexec";
         case 'linux':
             return "/usr/lib/ccache";
+        case 'win32':
+            switch (core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return `/${external_process_namespaceObject.env.MSYSTEM}/lib/ccache/bin`;
+                default:
+                    return "";
+            }
         default:
             return "";
     }
@@ -58380,16 +58394,58 @@ function isSupportedPlatform() {
         case 'darwin':
         case 'linux':
             return true;
+        case 'win32':
+            switch (core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return true;
+                default:
+                    return false;
+            }
         default:
             return false;
     }
 }
+function msysPackagePrefix() {
+    switch (external_process_namespaceObject.env.MSYSTEM) {
+        case 'CLANG32':
+            return "mingw-w64-clang-i686-";
+        case 'CLANG64':
+            return "mingw-w64-clang-x86_64-";
+        case 'MINGW32':
+            return "mingw-w64-i686-";
+        case 'MINGW64':
+            return "mingw-w64-x86_64-";
+        case 'MSYS':
+        default:
+            return "";
+        case 'UCRT64':
+            return "mingw-w64-ucrt-x86_64-";
+    }
+}
+function platformExecWrap(command) {
+    switch (external_process_namespaceObject.platform) {
+        case 'darwin':
+        case 'linux':
+            return command;
+        case 'win32':
+            switch (core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return `msys2 -c "${command.replace(/"/g, '\\"')}"`;
+                default:
+                    return "";
+            }
+        default:
+            return "";
+    }
+}
 function removeCcacheConfig() {
-    try {
-        external_fs_.unlinkSync(getCcacheConfigPath());
-    }
-    catch (error) {
-    }
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            external_fs_.unlinkSync(yield getCcacheConfigPath());
+        }
+        catch (error) {
+        }
+    });
 }
 
 ;// CONCATENATED MODULE: ./src/main.ts
@@ -58407,49 +58463,62 @@ var main_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arg
 
 
 
-
 function addSymlinksToPath() {
     return main_awaiter(this, void 0, void 0, function* () {
-        yield core.group("Prepend ccache symlinks path to $PATH", () => main_awaiter(this, void 0, void 0, function* () {
-            const symlinks = getCcacheSymlinksPath();
-            core.info(`ccache symlinks path: "${symlinks}"`);
-            core.addPath(symlinks);
-            core.info(`PATH=${process.env.PATH}`);
-        }));
+        switch (external_process_namespaceObject.platform) {
+            case 'darwin':
+            case 'linux': {
+                const symlinks = getCcacheSymlinksPath();
+                core.info(`ccache symlinks path: "${symlinks}"`);
+                core.addPath(symlinks);
+                core.info(`PATH=${process.env.PATH}`);
+                break;
+            }
+            case 'win32':
+                switch (core.getInput("windows_compile_environment")) {
+                    case 'msys2': {
+                        const symlinks = getCcacheSymlinksPath();
+                        core.info(`ccache symlinks path: "${symlinks}"`);
+                        const execOptions = {
+                            "silent": true
+                        };
+                        yield exec.exec(platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
+                        const pathOutput = yield exec.getExecOutput(platformExecWrap("echo PATH=$PATH"), [], execOptions);
+                        core.info(`${pathOutput.stdout.trim()}`);
+                        break;
+                    }
+                }
+                break;
+            default:
+                break;
+        }
     });
 }
 function checkCcacheAvailability() {
     return main_awaiter(this, void 0, void 0, function* () {
-        yield core.group("Check ccache availability", () => main_awaiter(this, void 0, void 0, function* () {
-            const notFoundError = new Error("Cannot find ccache on PATH");
-            let ccachePath;
-            try {
-                ccachePath = yield io.which("ccache", true);
-            }
-            catch (error) {
-                throw notFoundError;
-            }
-            if (ccachePath.length <= 0)
-                throw notFoundError;
-            core.info(`Found ccache at: "${ccachePath}"`);
-            yield exec.exec("ccache --version");
-        }));
+        const execOptions = {
+            "ignoreReturnCode": true,
+            "silent": true
+        };
+        const ccachePath = (yield exec.getExecOutput(platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+        if (ccachePath.length <= 0)
+            throw Error("Cannot find ccache on PATH");
+        core.info(`Found ccache at: "${ccachePath}"`);
+        yield exec.exec(platformExecWrap("ccache --version"));
     });
 }
 function configureCcache() {
     return main_awaiter(this, void 0, void 0, function* () {
-        yield core.group("Configure ccache", () => main_awaiter(this, void 0, void 0, function* () {
-            removeCcacheConfig();
-            const settings = core.getMultilineInput("ccache_options");
-            for (const setting of settings) {
-                const keyValue = setting.split("=", 2);
-                if (keyValue.length == 2) {
-                    const [key, value] = keyValue;
-                    yield exec.exec(`ccache --set-config "${key.trim()}=${value.trim()}"`);
-                }
+        yield removeCcacheConfig();
+        const settings = core.getMultilineInput("ccache_options");
+        for (const setting of settings) {
+            const keyValue = setting.split("=", 2);
+            if (keyValue.length == 2) {
+                const [key, value] = keyValue;
+                yield exec.exec(platformExecWrap(`ccache --set-config "${key.trim()}=${value.trim()}"`));
             }
-            yield exec.exec("ccache -p");
-        }));
+        }
+        yield exec.exec(platformExecWrap("ccache -p"));
     });
 }
 function installCcache() {
@@ -58461,6 +58530,13 @@ function installCcache() {
                     break;
                 case 'linux':
                     yield exec.exec("sudo apt install -y ccache");
+                    break;
+                case 'win32':
+                    switch (core.getInput("windows_compile_environment")) {
+                        case 'msys2':
+                            yield exec.exec(platformExecWrap(`pacman --sync --noconfirm ${msysPackagePrefix()}ccache`));
+                            break;
+                    }
                     break;
                 default:
                     break;
@@ -58486,12 +58562,10 @@ function setOutputVariables() {
         const envVars = new Map([
             ["ccache_symlinks_path", getCcacheSymlinksPath()]
         ]);
-        yield core.group("Create environment variables", () => main_awaiter(this, void 0, void 0, function* () {
-            for (const [key, value] of envVars) {
-                core.exportVariable(key, value);
-                core.info(`\${{ env.${key} }} = ${value}`);
-            }
-        }));
+        for (const [key, value] of envVars) {
+            core.exportVariable(key, value);
+            core.info(`\${{ env.${key} }} = ${value}`);
+        }
     });
 }
 function updatePackgerIndex() {
@@ -58504,6 +58578,13 @@ function updatePackgerIndex() {
                 case 'linux':
                     yield exec.exec("sudo apt update");
                     break;
+                case 'win32':
+                    switch (core.getInput("windows_compile_environment")) {
+                        case 'msys2':
+                            yield exec.exec(platformExecWrap(`pacman --sync --refresh`));
+                            break;
+                    }
+                    break;
                 default:
                     break;
             }
@@ -58514,7 +58595,13 @@ function main() {
     return main_awaiter(this, void 0, void 0, function* () {
         try {
             if (!isSupportedPlatform()) {
-                core.warning(`setup-ccache-action only support "ubuntu" and "macos" platforms. No operation...`);
+                if (external_process_namespaceObject.platform === "win32") {
+                    const env = core.getInput("windows_compile_environment");
+                    core.warning(`"windows_compile_environment=${env}" is not supported. No operation...`);
+                }
+                else {
+                    core.warning(`setup-ccache-action only support the following platforms: ["macos", "ubuntu", "windows"]. No operation...`);
+                }
                 return;
             }
             if (core.getBooleanInput("update_packager_index"))
@@ -58525,7 +58612,9 @@ function main() {
                 yield installCcache();
             else
                 core.info("Skip install ccache...");
-            yield checkCcacheAvailability();
+            yield core.group("Check ccache availability", () => main_awaiter(this, void 0, void 0, function* () {
+                yield checkCcacheAvailability();
+            }));
             let cacheHit = false;
             if (core.getBooleanInput("restore_cache"))
                 cacheHit = yield restoreCache();
@@ -58534,15 +58623,23 @@ function main() {
             yield core.group(`Set output variable: cache_hit="${cacheHit}"`, () => main_awaiter(this, void 0, void 0, function* () {
                 core.setOutput("cache_hit", cacheHit.toString());
             }));
-            yield configureCcache();
-            yield core.group("Clear ccache statistics", () => main_awaiter(this, void 0, void 0, function* () {
-                yield exec.exec("ccache --zero-stats");
+            yield core.group("Configure ccache", () => main_awaiter(this, void 0, void 0, function* () {
+                yield configureCcache();
             }));
-            if (core.getBooleanInput("prepend_symlinks_to_path"))
-                yield addSymlinksToPath();
-            else
+            yield core.group("Clear ccache statistics", () => main_awaiter(this, void 0, void 0, function* () {
+                yield exec.exec(platformExecWrap("ccache --zero-stats"));
+            }));
+            if (core.getBooleanInput("prepend_symlinks_to_path")) {
+                yield core.group("Prepend ccache symlinks path to $PATH", () => main_awaiter(this, void 0, void 0, function* () {
+                    yield addSymlinksToPath();
+                }));
+            }
+            else {
                 core.info("Skip prepend ccache symlinks path to $PATH...");
-            yield setOutputVariables();
+            }
+            yield core.group("Create environment variables", () => main_awaiter(this, void 0, void 0, function* () {
+                yield setOutputVariables();
+            }));
         }
         catch (error) {
             if (error instanceof Error)

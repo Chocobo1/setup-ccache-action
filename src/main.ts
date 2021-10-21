@@ -1,58 +1,71 @@
 import * as Cache from '@actions/cache';
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
-import * as IO from '@actions/io';
 import * as Process from 'process';
 import * as Utils from './utils';
 
 
 async function addSymlinksToPath() {
-  await Core.group("Prepend ccache symlinks path to $PATH", async () => {
-    const symlinks = Utils.getCcacheSymlinksPath();
-    Core.info(`ccache symlinks path: "${symlinks}"`);
+  switch (Process.platform) {
+    case 'darwin':
+    case 'linux': {
+      const symlinks = Utils.getCcacheSymlinksPath();
+      Core.info(`ccache symlinks path: "${symlinks}"`);
+      Core.addPath(symlinks);
+      Core.info(`PATH=${process.env.PATH}`);
+      break;
+    }
+    case 'win32':
+      switch (Core.getInput("windows_compile_environment")) {
+        case 'msys2': {
+          const symlinks = Utils.getCcacheSymlinksPath();
+          Core.info(`ccache symlinks path: "${symlinks}"`);
 
-    Core.addPath(symlinks);
-    Core.info(`PATH=${process.env.PATH}`);
-  });
+          const execOptions = {
+            "silent": true
+          };
+          await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
+          const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), [], execOptions);
+          Core.info(`${pathOutput.stdout.trim()}`);
+          break;
+        }
+      }
+      break;
+
+    default:
+      break;
+  }
 }
 
 async function checkCcacheAvailability() {
-  await Core.group("Check ccache availability", async () => {
-    const notFoundError = new Error("Cannot find ccache on PATH");
+  const execOptions = {
+    "ignoreReturnCode": true,
+    "silent": true
+  };
 
-    let ccachePath;
-    try {
-      ccachePath = await IO.which("ccache", true);
-    }
-    catch (error) {
-      throw notFoundError;
-    }
-    if (ccachePath.length <= 0)
-      throw notFoundError;
+  const ccachePath = (await Exec.getExecOutput(Utils.platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+  if (ccachePath.length <= 0)
+    throw Error("Cannot find ccache on PATH");
 
-    Core.info(`Found ccache at: "${ccachePath}"`);
-    await Exec.exec("ccache --version");
-  });
+  Core.info(`Found ccache at: "${ccachePath}"`);
+  await Exec.exec(Utils.platformExecWrap("ccache --version"));
 }
 
 async function configureCcache() {
   // need to regenerate the config file for each run
+  await Utils.removeCcacheConfig();
 
-  await Core.group("Configure ccache", async () => {
-    Utils.removeCcacheConfig();
-
-    const settings = Core.getMultilineInput("ccache_options");
-    for (const setting of settings) {
-      const keyValue = setting.split("=", 2);
-      if (keyValue.length == 2) {
-        const [key, value] = keyValue;
-        await Exec.exec(`ccache --set-config "${key.trim()}=${value.trim()}"`);
-      }
+  const settings = Core.getMultilineInput("ccache_options");
+  for (const setting of settings) {
+    const keyValue = setting.split("=", 2);
+    if (keyValue.length == 2) {
+      const [key, value] = keyValue;
+      await Exec.exec(Utils.platformExecWrap(`ccache --set-config "${key.trim()}=${value.trim()}"`));
     }
+  }
 
-    // `--show-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
-    await Exec.exec("ccache -p");
-  });
+  // `--show-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
+  await Exec.exec(Utils.platformExecWrap("ccache -p"));
 }
 
 async function installCcache() {
@@ -64,6 +77,14 @@ async function installCcache() {
 
       case 'linux':
         await Exec.exec("sudo apt install -y ccache");
+        break;
+
+      case 'win32':
+        switch (Core.getInput("windows_compile_environment")) {
+          case 'msys2':
+            await Exec.exec(Utils.platformExecWrap(`pacman --sync --noconfirm ${Utils.msysPackagePrefix()}ccache`));
+            break;
+        }
         break;
 
       default:
@@ -90,12 +111,10 @@ async function setOutputVariables() {
     ["ccache_symlinks_path", Utils.getCcacheSymlinksPath()]
   ]);
 
-  await Core.group("Create environment variables", async () => {
-    for (const [key, value] of envVars) {
-      Core.exportVariable(key, value);
-      Core.info(`\${{ env.${key} }} = ${value}`);
-    }
-  });
+  for (const [key, value] of envVars) {
+    Core.exportVariable(key, value);
+    Core.info(`\${{ env.${key} }} = ${value}`);
+  }
 }
 
 async function updatePackgerIndex() {
@@ -109,6 +128,14 @@ async function updatePackgerIndex() {
         await Exec.exec("sudo apt update");
         break;
 
+      case 'win32':
+        switch (Core.getInput("windows_compile_environment")) {
+          case 'msys2':
+            await Exec.exec(Utils.platformExecWrap(`pacman --sync --refresh`));
+            break;
+        }
+        break;
+
       default:
         break;
     }
@@ -118,7 +145,13 @@ async function updatePackgerIndex() {
 export default async function main(): Promise<void> {
   try {
     if (!Utils.isSupportedPlatform()) {
-      Core.warning(`setup-ccache-action only support "ubuntu" and "macos" platforms. No operation...`);
+      if (Process.platform === "win32") {
+        const env = Core.getInput("windows_compile_environment");
+        Core.warning(`"windows_compile_environment=${env}" is not supported. No operation...`);
+      }
+      else {
+        Core.warning(`setup-ccache-action only support the following platforms: ["macos", "ubuntu", "windows"]. No operation...`);
+      }
       return;
     }
 
@@ -132,7 +165,9 @@ export default async function main(): Promise<void> {
     else
       Core.info("Skip install ccache...");
 
-    await checkCcacheAvailability();
+    await Core.group("Check ccache availability", async () => {
+      await checkCcacheAvailability();
+    });
 
     let cacheHit = false;
     if (Core.getBooleanInput("restore_cache"))
@@ -144,18 +179,26 @@ export default async function main(): Promise<void> {
       Core.setOutput("cache_hit", cacheHit.toString());
     });
 
-    await configureCcache();
-
-    await Core.group("Clear ccache statistics", async () => {
-      await Exec.exec("ccache --zero-stats");
+    await Core.group("Configure ccache", async () => {
+      await configureCcache();
     });
 
-    if (Core.getBooleanInput("prepend_symlinks_to_path"))
-      await addSymlinksToPath();
-    else
-      Core.info("Skip prepend ccache symlinks path to $PATH...");
+    await Core.group("Clear ccache statistics", async () => {
+      await Exec.exec(Utils.platformExecWrap("ccache --zero-stats"));
+    });
 
-    await setOutputVariables();
+    if (Core.getBooleanInput("prepend_symlinks_to_path")) {
+      await Core.group("Prepend ccache symlinks path to $PATH", async () => {
+        await addSymlinksToPath();
+      });
+    }
+    else {
+      Core.info("Skip prepend ccache symlinks path to $PATH...");
+    }
+
+    await Core.group("Create environment variables", async () => {
+      await setOutputVariables();
+    });
   }
   catch (error) {
     if (error instanceof Error)

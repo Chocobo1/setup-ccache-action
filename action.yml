@@ -24,6 +24,13 @@ inputs:
     default: "true"
     required: false
 
+  windows_compile_environment:
+    description: "Specify which compiler environment you are going to use on Windows image.
+      Note that this field (a single value) is mandatory if you use this action on a Windows image.
+      Available options are: ['msys2']"
+    default: ""
+    required: false
+
   # store, restore cache
   restore_cache:
     description: "Whether to restore the cache at the start of this action"

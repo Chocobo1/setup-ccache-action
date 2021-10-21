@@ -33,21 +33,28 @@ export async function getCachePath(): Promise<string> {
     "silent": true
   };
 
-  const getOutput = await Exec.getExecOutput("ccache --get-config cache_dir", [], execOptions);
+  const getOutput = await Exec.getExecOutput(platformExecWrap("ccache --get-config cache_dir"), [], execOptions);
   if (getOutput.exitCode === 0)
     return getOutput.stdout.trim();
 
   // parse the output manually since `--get-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
-  const configOutput = await Exec.getExecOutput("ccache -p", [], execOptions);
+  const configOutput = await Exec.getExecOutput(platformExecWrap("ccache -p"), [], execOptions);
   return configOutput.stdout.match(/(?<=cache_dir = ).+/)![0].trim();
 }
 
-export function getCcacheConfigPath(): string {
+export async function getCcacheConfigPath(): Promise<string> {
   switch (Process.platform) {
     case 'darwin':
       return Path.join(OS.homedir(), "Library/Preferences/ccache/ccache.conf");
     case 'linux':
       return Path.join(OS.homedir(), ".ccache", "ccache.conf");
+    case 'win32':
+      switch (Core.getInput("windows_compile_environment")) {
+        case 'msys2':
+          return Path.join(await getCachePath(), "ccache.conf");
+        default:
+          return "";
+      }
     default:
       return "";
   }
@@ -59,6 +66,13 @@ export function getCcacheSymlinksPath(): string {
       return "/usr/local/opt/ccache/libexec";
     case 'linux':
       return "/usr/lib/ccache";
+    case 'win32':
+      switch (Core.getInput("windows_compile_environment")) {
+        case 'msys2':
+          return `/${Process.env.MSYSTEM}/lib/ccache/bin`;
+        default:
+          return "";
+      }
     default:
       return "";
   }
@@ -92,14 +106,61 @@ export function isSupportedPlatform(): boolean {
     case 'darwin':
     case 'linux':
       return true;
+
+    case 'win32':
+      switch (Core.getInput("windows_compile_environment")) {
+        case 'msys2':
+          return true;
+        default:
+          return false;
+      }
+
     default:
       return false;
   }
 }
 
-export function removeCcacheConfig(): void {
+export function msysPackagePrefix(): string {
+  switch (Process.env.MSYSTEM) {
+    case 'CLANG32':
+      return "mingw-w64-clang-i686-";
+    case 'CLANG64':
+      return "mingw-w64-clang-x86_64-";
+    case 'MINGW32':
+      return "mingw-w64-i686-";
+    case 'MINGW64':
+      return "mingw-w64-x86_64-";
+    case 'MSYS':
+    default:
+      return "";
+    case 'UCRT64':
+      return "mingw-w64-ucrt-x86_64-";
+  }
+}
+
+export function platformExecWrap(command: string): string {
+  switch (Process.platform) {
+    case 'darwin':
+    case 'linux':
+      return command;
+
+    case 'win32':
+      switch (Core.getInput("windows_compile_environment")) {
+        case 'msys2':
+          return `msys2 -c "${command.replace(/"/g, '\\"')}"`;
+
+        default:
+          return "";
+      }
+
+    default:
+      return "";
+  }
+}
+
+export async function removeCcacheConfig(): Promise<void> {
   try {
-    FS.unlinkSync(getCcacheConfigPath());
+    FS.unlinkSync(await getCcacheConfigPath());
   }
   catch (error) {
     // silence it

@@ -58327,22 +58327,31 @@ function getCachePath() {
             "ignoreReturnCode": true,
             "silent": true
         };
-        const getOutput = yield exec.getExecOutput("ccache --get-config cache_dir", [], execOptions);
+        const getOutput = yield exec.getExecOutput(platformExecWrap("ccache --get-config cache_dir"), [], execOptions);
         if (getOutput.exitCode === 0)
             return getOutput.stdout.trim();
-        const configOutput = yield exec.getExecOutput("ccache -p", [], execOptions);
+        const configOutput = yield exec.getExecOutput(platformExecWrap("ccache -p"), [], execOptions);
         return configOutput.stdout.match(/(?<=cache_dir = ).+/)[0].trim();
     });
 }
 function getCcacheConfigPath() {
-    switch (external_process_namespaceObject.platform) {
-        case 'darwin':
-            return external_path_.join(external_os_.homedir(), "Library/Preferences/ccache/ccache.conf");
-        case 'linux':
-            return external_path_.join(external_os_.homedir(), ".ccache", "ccache.conf");
-        default:
-            return "";
-    }
+    return __awaiter(this, void 0, void 0, function* () {
+        switch (external_process_namespaceObject.platform) {
+            case 'darwin':
+                return external_path_.join(external_os_.homedir(), "Library/Preferences/ccache/ccache.conf");
+            case 'linux':
+                return external_path_.join(external_os_.homedir(), ".ccache", "ccache.conf");
+            case 'win32':
+                switch (core.getInput("windows_compile_environment")) {
+                    case 'msys2':
+                        return external_path_.join(yield getCachePath(), "ccache.conf");
+                    default:
+                        return "";
+                }
+            default:
+                return "";
+        }
+    });
 }
 function getCcacheSymlinksPath() {
     switch (Process.platform) {
@@ -58350,6 +58359,13 @@ function getCcacheSymlinksPath() {
             return "/usr/local/opt/ccache/libexec";
         case 'linux':
             return "/usr/lib/ccache";
+        case 'win32':
+            switch (Core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return `/${Process.env.MSYSTEM}/lib/ccache/bin`;
+                default:
+                    return "";
+            }
         default:
             return "";
     }
@@ -58378,16 +58394,58 @@ function isSupportedPlatform() {
         case 'darwin':
         case 'linux':
             return true;
+        case 'win32':
+            switch (core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return true;
+                default:
+                    return false;
+            }
         default:
             return false;
     }
 }
+function msysPackagePrefix() {
+    switch (Process.env.MSYSTEM) {
+        case 'CLANG32':
+            return "mingw-w64-clang-i686-";
+        case 'CLANG64':
+            return "mingw-w64-clang-x86_64-";
+        case 'MINGW32':
+            return "mingw-w64-i686-";
+        case 'MINGW64':
+            return "mingw-w64-x86_64-";
+        case 'MSYS':
+        default:
+            return "";
+        case 'UCRT64':
+            return "mingw-w64-ucrt-x86_64-";
+    }
+}
+function platformExecWrap(command) {
+    switch (external_process_namespaceObject.platform) {
+        case 'darwin':
+        case 'linux':
+            return command;
+        case 'win32':
+            switch (core.getInput("windows_compile_environment")) {
+                case 'msys2':
+                    return `msys2 -c "${command.replace(/"/g, '\\"')}"`;
+                default:
+                    return "";
+            }
+        default:
+            return "";
+    }
+}
 function removeCcacheConfig() {
-    try {
-        external_fs_.unlinkSync(getCcacheConfigPath());
-    }
-    catch (error) {
-    }
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            external_fs_.unlinkSync(yield getCcacheConfigPath());
+        }
+        catch (error) {
+        }
+    });
 }
 
 ;// CONCATENATED MODULE: ./src/post.ts
@@ -58431,9 +58489,10 @@ function main() {
     return post_awaiter(this, void 0, void 0, function* () {
         try {
             if (!isSupportedPlatform()) {
+                core.info("No operation...");
                 return;
             }
-            yield exec.exec("ccache --show-stats");
+            yield exec.exec(platformExecWrap("ccache --show-stats"));
             if (core.getBooleanInput("store_cache"))
                 yield saveCache();
             else

@@ -37,11 +37,11 @@ async function saveCache() {
 export default async function main(): Promise<void> {
   try {
     if (!Utils.isSupportedPlatform()) {
-      // don't print warning message
+      Core.info("No operation...");
       return;
     }
 
-    await Exec.exec("ccache --show-stats");
+    await Exec.exec(Utils.platformExecWrap("ccache --show-stats"));
 
     if (Core.getBooleanInput("store_cache"))
       await saveCache();

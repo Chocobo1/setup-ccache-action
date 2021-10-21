@@ -107,6 +107,23 @@ For description of all options, take a look at [action.yml](action.yml).
         compression=false
   ```
 
+* `windows_compile_environment` \
+  Specify which compiler environment you are going to use on Windows image. \
+  Note that this field is mandatory if you intend to use this action on a Windows image. \
+  Refer to [action.yml](action.yml) for available options.
+  ```yml
+  # run this action before setting up ccache
+  - name: Setup msys2
+    uses: msys2/setup-msys2@v2
+    with:
+      install: mingw-w64-x86_64-toolchain
+
+  - name: Setup ccache
+    uses: Chocobo1/setup-ccache-action@v1
+    with:
+      windows_compile_environment: msys2  # this field is required
+  ```
+
 ## Limitations
 This action only support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
-Running on Windows is **not** supported.
+Windows is partly supported: only `msys2` is available currently.

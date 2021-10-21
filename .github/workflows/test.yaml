@@ -104,13 +104,65 @@ jobs:
         uses: ./
 
 
-  windows:
-    name: Windows
+  windows_msvc:
+    name: Windows MSVC
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # run without `windows_compile_environment`
       - name: Setup ccache
         uses: ./
+
+      - name: Setup devcmd
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build test program
+        run: |
+          cl ".github/workflows/hello_world.cpp"
+          & ".\hello_world.exe"
+
+
+  windows_msys2:
+    name: Windows msys2
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          install: mingw-w64-x86_64-gcc
+
+      - name: Setup ccache
+        uses: ./
+        with:
+          windows_compile_environment: msys2
+
+      - name: Print environment
+        shell: msys2 {0}
+        run: |
+          whoami
+          echo ~
+          env
+          pwd
+          df -h
+          echo "$PATH"
+          which ccache
+          ccache --version
+          ccache --show-config
+          ccache --show-stats
+          ls -la "$MSYSTEM_PREFIX/lib/ccache/bin"
+          echo "${{ env.ccache_symlinks_path }}"
+          echo "${{ steps.setup_ccache.outputs.cache_hit }}"
+          cat ~/.bash_profile
+
+      - name: Build test program
+        shell: msys2 {0}
+        run: |
+          g++ ".github/workflows/hello_world.cpp" -o "hello_world"
+          ./hello_world

@@ -166,3 +166,7 @@ export async function removeCcacheConfig(): Promise<void> {
     // silence it
   }
 }
+
+export function sudoCommandWrap(command: string): string {
+  return ((Process.getuid() !== 0) ? "sudo " : "") + command;
+}

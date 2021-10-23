@@ -58070,6 +58070,9 @@ function removeCcacheConfig() {
         }
     });
 }
+function sudoCommandWrap(command) {
+    return ((Process.getuid() !== 0) ? "sudo " : "") + command;
+}
 
 ;// CONCATENATED MODULE: ./src/post.ts
 var post_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {

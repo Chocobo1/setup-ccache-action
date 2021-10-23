@@ -58070,6 +58070,9 @@ function removeCcacheConfig() {
         }
     });
 }
+function sudoCommandWrap(command) {
+    return ((external_process_namespaceObject.getuid() !== 0) ? "sudo " : "") + command;
+}
 
 ;// CONCATENATED MODULE: ./src/main.ts
 var main_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -58152,7 +58155,7 @@ function installCcache() {
                     yield exec.exec("brew install ccache");
                     break;
                 case 'linux':
-                    yield exec.exec("sudo apt install -y ccache");
+                    yield exec.exec(sudoCommandWrap("apt install -y ccache"));
                     break;
                 case 'win32':
                     switch (core.getInput("windows_compile_environment")) {
@@ -58199,7 +58202,7 @@ function updatePackgerIndex() {
                     yield exec.exec("brew update");
                     break;
                 case 'linux':
-                    yield exec.exec("sudo apt update");
+                    yield exec.exec(sudoCommandWrap("apt update"));
                     break;
                 case 'win32':
                     switch (core.getInput("windows_compile_environment")) {

@@ -76,7 +76,7 @@ async function installCcache() {
         break;
 
       case 'linux':
-        await Exec.exec("sudo apt install -y ccache");
+        await Exec.exec(Utils.sudoCommandWrap("apt install -y ccache"));
         break;
 
       case 'win32':
@@ -125,7 +125,7 @@ async function updatePackgerIndex() {
         break;
 
       case 'linux':
-        await Exec.exec("sudo apt update");
+        await Exec.exec(Utils.sudoCommandWrap("apt update"));
         break;
 
       case 'win32':

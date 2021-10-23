@@ -58216,6 +58216,7 @@ function updatePackgerIndex() {
 }
 function main() {
     return main_awaiter(this, void 0, void 0, function* () {
+        external_process_namespaceObject.removeAllListeners('warning');
         try {
             if (!isSupportedPlatform()) {
                 if (external_process_namespaceObject.platform === "win32") {

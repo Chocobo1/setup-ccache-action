@@ -143,6 +143,9 @@ async function updatePackgerIndex() {
 }
 
 export default async function main(): Promise<void> {
+  // hide annoying nodejs deprecation warnings
+  Process.removeAllListeners('warning');
+
   try {
     if (!Utils.isSupportedPlatform()) {
       if (Process.platform === "win32") {

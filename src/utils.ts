@@ -78,6 +78,19 @@ export function getCcacheSymlinksPath(): string {
   }
 }
 
+export async function getMsysInstallationPath(): Promise<string> {
+  const execOptions = {
+    "silent": true
+  };
+
+  const pwdOutput = await Exec.getExecOutput(platformExecWrap("cd ~ && pwd -W"), [], execOptions);
+  if (pwdOutput.exitCode !== 0)
+    return "";
+
+  const basePath = Path.normalize(pwdOutput.stdout.trim() + "/../..");
+  return basePath;
+}
+
 export function getOverrideCacheKey(): IOverrideCacheKey {
   const key = Core.getInput('override_cache_key');
   return {

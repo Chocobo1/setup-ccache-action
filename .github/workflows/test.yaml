@@ -40,6 +40,7 @@ jobs:
           df -h
           echo "$PATH"
           which ccache
+          which gcc
           ccache --version
           ccache --show-config
           ccache --show-stats
@@ -78,6 +79,7 @@ jobs:
           df -h
           echo "$PATH"
           which ccache
+          which gcc
           ccache --version
           ccache --show-config
           ccache --show-stats
@@ -136,14 +138,22 @@ jobs:
       - name: Setup msys2
         uses: msys2/setup-msys2@v2
         with:
-          install: mingw-w64-x86_64-gcc
+          install: |
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
 
       - name: Setup ccache
         uses: ./
         with:
           windows_compile_environment: msys2
 
-      - name: Print environment
+      - name: Print environment (system)
+        run: |
+          (Get-Item .).FullName
+          $env:path
+
+      - name: Print environment (msys)
         shell: msys2 {0}
         run: |
           whoami
@@ -153,6 +163,7 @@ jobs:
           df -h
           echo "$PATH"
           which ccache
+          which gcc
           ccache --version
           ccache --show-config
           ccache --show-stats
@@ -161,8 +172,19 @@ jobs:
           echo "${{ steps.setup_ccache.outputs.cache_hit }}"
           cat ~/.bash_profile
 
-      - name: Build test program
+      - name: Build test program (direct)
         shell: msys2 {0}
         run: |
           g++ ".github/workflows/hello_world.cpp" -o "hello_world"
           ./hello_world
+
+      - name: Build test program (cmake)
+        shell: msys2 {0}
+        run: |
+          cmake \
+            -B _build \
+            -G "MSYS Makefiles" \
+            .github/workflows
+          cmake \
+            --build _build
+          ./_build/HelloWorld

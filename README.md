@@ -109,14 +109,19 @@ For description of all options, take a look at [action.yml](action.yml).
 
 * `windows_compile_environment` \
   Specify which compiler environment you are going to use on Windows image. \
-  Note that this field is mandatory if you intend to use this action on a Windows image. \
-  Refer to [action.yml](action.yml) for available options.
+  This field is mandatory if you intend to use this action on a Windows image! \
+  Refer to [action.yml](action.yml) for available options. \
+  Note: as of October 2021, cmake still have some problems when using the default "Ninja" generator.
+  I would suggest using "MSYS Makefiles" generator along with the `make` package
+  (without `mingw-w64-*-` prefix in package name).
   ```yml
   # run this action before setting up ccache
   - name: Setup msys2
     uses: msys2/setup-msys2@v2
     with:
-      install: mingw-w64-x86_64-toolchain
+      install: |
+        make
+        mingw-w64-x86_64-toolchain
 
   - name: Setup ccache
     uses: Chocobo1/setup-ccache-action@v1
@@ -125,5 +130,5 @@ For description of all options, take a look at [action.yml](action.yml).
   ```
 
 ## Limitations
-This action only support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
+This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
 Windows is partly supported: only `msys2` is available currently.

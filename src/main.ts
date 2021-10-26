@@ -19,14 +19,18 @@ async function addSymlinksToPath() {
       switch (Core.getInput("windows_compile_environment")) {
         case 'msys2': {
           const symlinks = Utils.getCcacheSymlinksPath();
-          Core.info(`ccache symlinks path: "${symlinks}"`);
+          Core.info(`ccache symlinks path (msys): "${symlinks}"`);
 
+          // adjust system PATH
+          Core.addPath((await Utils.getMsysInstallationPath()) + symlinks);
+
+          // adjust PATH within msys
           const execOptions = {
             "silent": true
           };
           await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
           const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), [], execOptions);
-          Core.info(`${pathOutput.stdout.trim()}`);
+          Core.info(`(msys) ${pathOutput.stdout.trim()}`);
           break;
         }
       }

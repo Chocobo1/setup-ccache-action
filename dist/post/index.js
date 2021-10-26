@@ -57993,6 +57993,18 @@ function getCcacheSymlinksPath() {
             return "";
     }
 }
+function getMsysInstallationPath() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const execOptions = {
+            "silent": true
+        };
+        const pwdOutput = yield Exec.getExecOutput(platformExecWrap("cd ~ && pwd -W"), [], execOptions);
+        if (pwdOutput.exitCode !== 0)
+            return "";
+        const basePath = Path.normalize(pwdOutput.stdout.trim() + "/../..");
+        return basePath;
+    });
+}
 function getOverrideCacheKey() {
     const key = core.getInput('override_cache_key');
     return {

@@ -57993,6 +57993,18 @@ function getCcacheSymlinksPath() {
             return "";
     }
 }
+function getMsysInstallationPath() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const execOptions = {
+            "silent": true
+        };
+        const pwdOutput = yield exec.getExecOutput(platformExecWrap("cd ~ && pwd -W"), [], execOptions);
+        if (pwdOutput.exitCode !== 0)
+            return "";
+        const basePath = external_path_.normalize(pwdOutput.stdout.trim() + "/../..");
+        return basePath;
+    });
+}
 function getOverrideCacheKey() {
     const key = core.getInput('override_cache_key');
     return {
@@ -58104,13 +58116,14 @@ function addSymlinksToPath() {
                 switch (core.getInput("windows_compile_environment")) {
                     case 'msys2': {
                         const symlinks = getCcacheSymlinksPath();
-                        core.info(`ccache symlinks path: "${symlinks}"`);
+                        core.info(`ccache symlinks path (msys): "${symlinks}"`);
+                        core.addPath((yield getMsysInstallationPath()) + symlinks);
                         const execOptions = {
                             "silent": true
                         };
                         yield exec.exec(platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
                         const pathOutput = yield exec.getExecOutput(platformExecWrap("echo PATH=$PATH"), [], execOptions);
-                        core.info(`${pathOutput.stdout.trim()}`);
+                        core.info(`(msys) ${pathOutput.stdout.trim()}`);
                         break;
                     }
                 }

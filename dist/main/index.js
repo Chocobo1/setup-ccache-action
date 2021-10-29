@@ -57993,6 +57993,21 @@ function getCcacheSymlinksPath() {
             return "";
     }
 }
+function getCcacheVersion() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const execOptions = {
+            "silent": true
+        };
+        const versionOutput = yield Exec.getExecOutput(platformExecWrap("ccache --version"), [], execOptions);
+        if (versionOutput.exitCode !== 0)
+            return [];
+        const match = versionOutput.stdout.match(/version (.*)/);
+        if (!match || (match.length < 2))
+            return [];
+        const versionString = match[1];
+        return versionString.split('.').map(parseInt);
+    });
+}
 function getMsysInstallationPath() {
     return __awaiter(this, void 0, void 0, function* () {
         const execOptions = {

@@ -78,6 +78,23 @@ export function getCcacheSymlinksPath(): string {
   }
 }
 
+export async function getCcacheVersion(): Promise<number[]> {
+  const execOptions = {
+    "silent": true
+  };
+
+  const versionOutput = await Exec.getExecOutput(platformExecWrap("ccache --version"), [], execOptions);
+  if (versionOutput.exitCode !== 0)
+    return [];
+
+  const match = versionOutput.stdout.match(/version (.*)/);
+  if (!match || (match.length < 2))
+    return [];
+
+  const versionString = match[1];
+  return versionString.split('.').map(parseInt);
+}
+
 export async function getMsysInstallationPath(): Promise<string> {
   const execOptions = {
     "silent": true

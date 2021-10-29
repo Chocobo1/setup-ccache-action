@@ -34,6 +34,15 @@ async function saveCache() {
   });
 }
 
+async function showStats() {
+  const version = await Utils.getCcacheVersion();
+
+  let command = "ccache --show-stats";
+  if (version[0] >= 4)
+    command += " --verbose --verbose";
+  await Exec.exec(Utils.platformExecWrap(command));
+}
+
 export default async function main(): Promise<void> {
   try {
     if (!Utils.isSupportedPlatform()) {
@@ -41,7 +50,7 @@ export default async function main(): Promise<void> {
       return;
     }
 
-    await Exec.exec(Utils.platformExecWrap("ccache --show-stats"));
+    await showStats();
 
     if (Core.getBooleanInput("store_cache"))
       await saveCache();

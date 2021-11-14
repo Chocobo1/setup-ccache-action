@@ -4,8 +4,8 @@
         "esModuleInterop": true,
         "moduleResolution": "Node",
         "noImplicitAny": true,
-        "strict": true,
         "removeComments": true,
+        "strict": true,
         "target": "ES6"
     }
 }

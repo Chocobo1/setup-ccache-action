@@ -21,7 +21,7 @@
     "GitHub Actions"
   ],
   "scripts": {
-    "build": "ncc build src/main.ts -o dist/main && ncc build src/post.ts -o dist/post",
+    "build": "ncc build src/main.ts -o dist/main --minify --source-map & ncc build src/post.ts -o dist/post --minify --source-map & wait",
     "lint": "eslint src/*.ts"
   },
   "dependencies": {

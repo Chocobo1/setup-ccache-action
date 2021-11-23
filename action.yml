@@ -60,7 +60,6 @@ inputs:
     description: "Config settings for ccache. Accept a list of key=value pairs.
       Ref: https://ccache.dev/manual/latest.html#_configuration_options"
     default: |
-      max_size=500M
     required: false
 
 outputs:

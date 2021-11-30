@@ -69,7 +69,7 @@ export function getCcacheSymlinksPath(): string {
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
         case 'msys2':
-          return `/${Process.env.MSYSTEM}/lib/ccache/bin`;
+          return `${Process.env.MSYSTEM_PREFIX}/lib/ccache/bin`;
         default:
           return "";
       }

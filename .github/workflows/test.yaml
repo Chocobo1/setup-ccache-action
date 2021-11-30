@@ -143,6 +143,10 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-gcc
 
+      - name: Print msys2 related info
+        run: |
+          Get-Content -Path "D:\a\_temp\setup-msys2\msys2.cmd"
+
       - name: Setup ccache
         uses: ./
         with:

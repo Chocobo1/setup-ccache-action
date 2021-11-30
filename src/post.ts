@@ -37,7 +37,7 @@ async function saveCache() {
 async function showStats() {
   const version = await Utils.getCcacheVersion();
 
-  let command = "ccache --show-stats";
+  let command = `${await Utils.getCcacheBinaryPath()} --show-stats`;
   if (version[0] >= 4)
     command += " --verbose --verbose";
   await Exec.exec(Utils.platformExecWrap(command));

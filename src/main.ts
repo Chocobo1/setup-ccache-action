@@ -42,34 +42,30 @@ async function addSymlinksToPath() {
 }
 
 async function checkCcacheAvailability() {
-  const execOptions = {
-    "ignoreReturnCode": true,
-    "silent": true
-  };
-
-  const ccachePath = (await Exec.getExecOutput(Utils.platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+  const ccachePath = await Utils.getCcacheBinaryPath();
   if (ccachePath.length <= 0)
     throw Error("Cannot find ccache on PATH");
 
   Core.info(`Found ccache at: "${ccachePath}"`);
-  await Exec.exec(Utils.platformExecWrap("ccache --version"));
+  await Exec.exec(Utils.platformExecWrap(`${ccachePath} --version`));
 }
 
 async function configureCcache() {
   // need to regenerate the config file for each run
   await Utils.removeCcacheConfig();
 
+  const ccachePath = await Utils.getCcacheBinaryPath();
   const settings = Core.getMultilineInput("ccache_options");
   for (const setting of settings) {
     const keyValue = setting.split("=", 2);
     if (keyValue.length == 2) {
       const [key, value] = keyValue;
-      await Exec.exec(Utils.platformExecWrap(`ccache --set-config "${key.trim()}=${value.trim()}"`));
+      await Exec.exec(Utils.platformExecWrap(`${ccachePath} --set-config "${key.trim()}=${value.trim()}"`));
     }
   }
 
   // `--show-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
-  await Exec.exec(Utils.platformExecWrap("ccache -p"));
+  await Exec.exec(Utils.platformExecWrap(`${ccachePath} -p`));
 }
 
 async function installCcache() {

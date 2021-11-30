@@ -33,13 +33,28 @@ export async function getCachePath(): Promise<string> {
     "silent": true
   };
 
-  const getOutput = await Exec.getExecOutput(platformExecWrap("ccache --get-config cache_dir"), [], execOptions);
+  const ccachePath = await getCcacheBinaryPath();
+
+  const getOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} --get-config cache_dir`), [], execOptions);
   if (getOutput.exitCode === 0)
     return getOutput.stdout.trim();
 
   // parse the output manually since `--get-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
-  const configOutput = await Exec.getExecOutput(platformExecWrap("ccache -p"), [], execOptions);
+  const configOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} -p`), [], execOptions);
   return configOutput.stdout.match(/(?<=cache_dir = ).+/)![0].trim();
+}
+
+let g_ccachePath = "";
+export async function getCcacheBinaryPath(): Promise<string> {
+  if (g_ccachePath.length <= 0) {
+    const execOptions = {
+      "ignoreReturnCode": true,
+      "silent": true
+    };
+
+    g_ccachePath = (await Exec.getExecOutput(platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+  }
+  return g_ccachePath;
 }
 
 export async function getCcacheConfigPath(): Promise<string> {
@@ -83,7 +98,7 @@ export async function getCcacheVersion(): Promise<number[]> {
     "silent": true
   };
 
-  const versionOutput = await Exec.getExecOutput(platformExecWrap("ccache --version"), [], execOptions);
+  const versionOutput = await Exec.getExecOutput(platformExecWrap(`${await getCcacheBinaryPath()} --version`), [], execOptions);
   if (versionOutput.exitCode !== 0)
     return [];
 

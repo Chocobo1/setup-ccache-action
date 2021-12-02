@@ -143,9 +143,11 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-gcc
 
-      - name: Print msys2 related info
+      - name: Print environment (system)
         run: |
           Get-Content -Path "D:\a\_temp\setup-msys2\msys2.cmd"
+          Get-ChildItem env:
+          $env:path
 
       - name: Setup ccache
         uses: ./
@@ -155,6 +157,7 @@ jobs:
       - name: Print environment (system)
         run: |
           (Get-Item .).FullName
+          Get-ChildItem env:
           $env:path
 
       - name: Print environment (msys)

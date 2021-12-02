@@ -191,11 +191,8 @@ export function platformExecWrap(command: string): string {
 
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
-        case 'msys2': {
-          // follow style issued from msys2/setup-msys2
-          const quotedCommand = command.split(' ').map(s => `'${s}'`).join(' ');
-          return `msys2 -c "${quotedCommand}"`;
-        }
+        case 'msys2':
+          return `msys2 -c "${command.replace(/"/g, '\\"')}"`;
 
         default:
           return "";

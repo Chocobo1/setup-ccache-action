@@ -83,8 +83,13 @@ export function getCcacheSymlinksPath(): string {
       return "/usr/lib/ccache";
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
-        case 'msys2':
-          return `${Process.env.MSYSTEM_PREFIX}/lib/ccache/bin`;
+        case 'msys2': {
+          // `MSYSTEM_PREFIX` isn't available since this is not inside msys2 shell
+          // and so we mimic it
+          // https://github.com/msys2/MSYS2-packages/blob/master/filesystem/msystem
+          const msystemPrefix = ("/" + Process.env.MSYSTEM!.toLowerCase());
+          return (msystemPrefix + "/lib/ccache/bin");
+        }
         default:
           return "";
       }

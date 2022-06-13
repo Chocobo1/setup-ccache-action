@@ -100,9 +100,18 @@ async function restoreCache(): Promise<boolean> {
     const restoreKeys = Utils.getOverrideCacheKeyFallback();
 
     Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
-    const cachePath = await Cache.restoreCache(paths, primaryKey, restoreKeys);
-    Core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
-    return (cachePath ? true : false);
+    try {
+      const cachePath = await Cache.restoreCache(paths, primaryKey, restoreKeys);
+      Core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
+      return (cachePath ? true : false);
+    }
+    catch (error) {
+      if (error instanceof Error)
+        Core.warning(`Error occurred in \`Cache.restoreCache()\`. Error message: "${error.message}"`);
+      else
+        throw error;
+    }
+    return false;
   });
 }
 

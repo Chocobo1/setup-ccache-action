@@ -26,9 +26,9 @@ async function saveCache() {
       }
       catch (error) {
         if (error instanceof Cache.ReserveCacheError)
-          Core.info(`Upload error: "${error}". Retry ${i + 1}...`);
+          Core.info(`Upload error: "${error}". Error message: "${error.message}". Retry ${i + 1}...`);
         else if (error instanceof Error)
-          Core.warning(`Error occurred in \`Cache.saveCache()\`. Error message: "${error.message}"`);
+          Core.warning(`Upload error: "${error}". Error message: "${error.message}". Retry ${i + 1}...`);
         else
           throw error;
       }

@@ -106,8 +106,8 @@ jobs:
         uses: ./
 
 
-  windows_msvc:
-    name: Windows MSVC
+  windows_without_env_var:
+    name: Windows without env variable
     runs-on: windows-latest
 
     steps:
@@ -118,13 +118,49 @@ jobs:
       - name: Setup ccache
         uses: ./
 
+
+  windows_msvc:
+    name: Windows msvc
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup ccache
+        uses: ./
+        with:
+          windows_compile_environment: msvc
+          ccache_options: |
+            max_size=1G
+
+      - name: Install build tools
+        run: |
+          choco install ninja
+
+      - name: Print environment
+        shell: cmd
+        run: |
+          ccache --version
+          ccache --show-config
+          ccache --show-stats
+          echo "${{ env.ccache_symlinks_path }}"
+          echo "${{ steps.setup_ccache.outputs.cache_hit }}"
+
       - name: Setup devcmd
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build test program
         run: |
-          cl ".github/workflows/hello_world.cpp"
-          & ".\hello_world.exe"
+          cmake `
+            -B _build `
+            -G "Ninja" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH="${{ env.ccache_symlinks_path }}" `
+            .github/workflows
+          cmake `
+            --build _build
+          ./_build/HelloWorld
 
 
   windows_msys2:

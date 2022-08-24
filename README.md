@@ -110,25 +110,55 @@ For description of all options, take a look at [action.yml](action.yml).
 * `windows_compile_environment` \
   Specify which compiler environment you are going to use on Windows image. \
   This field is mandatory if you intend to use this action on a Windows image! \
-  Refer to [action.yml](action.yml) for available options. \
-  Note: as of October 2021, cmake still have some problems when using the default "Ninja" generator.
-  I would suggest using "MSYS Makefiles" generator along with the `make` package
-  (without `mingw-w64-*-` prefix in package name).
-  ```yml
-  # run this action before setting up ccache
-  - name: Setup msys2
-    uses: msys2/setup-msys2@v2
-    with:
-      install: |
-        make
-        mingw-w64-x86_64-toolchain
+  Refer to [action.yml](action.yml) for available options.
+  * If you are using `msvc`, first make sure you are informed of its limitations and usage tips:
+    * https://ccache.dev/platform-compiler-language-support.html
+    * https://github.com/ccache/ccache/wiki/MS-Visual-Studio
 
-  - name: Setup ccache
-    uses: Chocobo1/setup-ccache-action@v1
-    with:
-      windows_compile_environment: msys2  # this field is required
-  ```
+    ```yml
+    - name: Setup ccache
+      uses: Chocobo1/setup-ccache-action@v1
+      with:
+        windows_compile_environment: msvc  # this field is required
+
+    - name: Build program
+      run: |
+        cmake `
+          -B _build `
+          -G "Ninja" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH="${{ env.ccache_symlinks_path }}" `
+          .
+        cmake --build _build
+    ```
+
+  * If you are uinsg `msys2`, note that as of October 2021, cmake have some problems when using the default "Ninja" generator.
+    I would suggest using "MSYS Makefiles" generator along with the `make` package
+    (without `mingw-w64-*-` prefix in package name).
+    ```yml
+    # run this action before setting up ccache
+    - name: Setup msys2
+      uses: msys2/setup-msys2@v2
+      with:
+        install: |
+          make
+          mingw-w64-x86_64-toolchain
+
+    - name: Setup ccache
+      uses: Chocobo1/setup-ccache-action@v1
+      with:
+        windows_compile_environment: msys2  # this field is required
+
+    - name: Build program
+      shell: msys2 {0}
+      run: |
+        cmake \
+          -B _build \
+          -G "MSYS Makefiles" \
+          .
+        cmake --build _build
+    ```
 
 ## Limitations
 This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
-Windows is partly supported: only `msys2` is available currently.
+On Windows it has primitive support for `msvc` and `msys2`.

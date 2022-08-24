@@ -6,39 +6,49 @@ import * as Utils from './utils';
 
 
 async function addSymlinksToPath() {
-  switch (Process.platform) {
-    case 'darwin':
-    case 'linux': {
-      const symlinks = Utils.getCcacheSymlinksPath();
-      Core.info(`ccache symlinks path: "${symlinks}"`);
-      Core.addPath(symlinks);
-      Core.info(`PATH=${process.env.PATH}`);
-      break;
-    }
-    case 'win32':
-      switch (Core.getInput("windows_compile_environment")) {
-        case 'msys2': {
-          const symlinks = Utils.getCcacheSymlinksPath();
-          Core.info(`ccache symlinks path (msys): "${symlinks}"`);
+  const windowsCompileEnvironment = Core.getInput("windows_compile_environment");
 
-          // adjust system PATH
-          Core.addPath((await Utils.getMsysInstallationPath()) + symlinks);
-
-          // adjust PATH within msys
-          const execOptions = {
-            "silent": true
-          };
-          await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
-          const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), [], execOptions);
-          Core.info(`(msys) ${pathOutput.stdout.trim()}`);
-          break;
-        }
-      }
-      break;
-
-    default:
-      break;
+  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc'))
+  {
+    // `choco` installer already put it on %PATH%
+    return;
   }
+
+  await Core.group("Prepend ccache symlinks path to $PATH", async () => {
+    switch (Process.platform) {
+      case 'darwin':
+      case 'linux': {
+        const symlinks = await Utils.getCcacheSymlinksPath();
+        Core.info(`ccache symlinks path: "${symlinks}"`);
+        Core.addPath(symlinks);
+        Core.info(`PATH=${process.env.PATH}`);
+        break;
+      }
+      case 'win32':
+        switch (windowsCompileEnvironment) {
+          case 'msys2': {
+            const symlinks = await Utils.getCcacheSymlinksPath();
+            Core.info(`ccache symlinks path (msys): "${symlinks}"`);
+
+            // adjust system PATH
+            Core.addPath((await Utils.getMsysInstallationPath()) + symlinks);
+
+            // adjust PATH within msys
+            const execOptions = {
+              "silent": true
+            };
+            await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
+            const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), [], execOptions);
+            Core.info(`(msys) ${pathOutput.stdout.trim()}`);
+            break;
+          }
+        }
+        break;
+
+      default:
+        break;
+    }
+  });
 }
 
 async function checkCcacheAvailability() {
@@ -81,6 +91,9 @@ async function installCcache() {
 
       case 'win32':
         switch (Core.getInput("windows_compile_environment")) {
+          case 'msvc':
+            await Exec.exec("choco install ccache -y");
+            break;
           case 'msys2':
             await Exec.exec(Utils.platformExecWrap(`pacman --sync --noconfirm ${Utils.msysPackagePrefix()}ccache`));
             break;
@@ -117,7 +130,7 @@ async function restoreCache(): Promise<boolean> {
 
 async function setOutputVariables() {
   const envVars = new Map([
-    ["ccache_symlinks_path", Utils.getCcacheSymlinksPath()]
+    ["ccache_symlinks_path", await Utils.getCcacheSymlinksPath()]
   ]);
 
   for (const [key, value] of envVars) {
@@ -127,6 +140,14 @@ async function setOutputVariables() {
 }
 
 async function updatePackgerIndex() {
+  const windowsCompileEnvironment = Core.getInput("windows_compile_environment");
+
+  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc'))
+  {
+    // `choco` installer doesn't need this
+    return;
+  }
+
   await Core.group("Update packager index", async () => {
     switch (Process.platform) {
       case 'darwin':
@@ -138,7 +159,7 @@ async function updatePackgerIndex() {
         break;
 
       case 'win32':
-        switch (Core.getInput("windows_compile_environment")) {
+        switch (windowsCompileEnvironment) {
           case 'msys2':
             await Exec.exec(Utils.platformExecWrap(`pacman --sync --refresh`));
             break;
@@ -199,14 +220,10 @@ export default async function main(): Promise<void> {
       await Exec.exec(Utils.platformExecWrap("ccache --zero-stats"));
     });
 
-    if (Core.getBooleanInput("prepend_symlinks_to_path")) {
-      await Core.group("Prepend ccache symlinks path to $PATH", async () => {
+    if (Core.getBooleanInput("prepend_symlinks_to_path"))
         await addSymlinksToPath();
-      });
-    }
-    else {
+    else
       Core.info("Skip prepend ccache symlinks path to $PATH...");
-    }
 
     await Core.group("Create environment variables", async () => {
       await setOutputVariables();

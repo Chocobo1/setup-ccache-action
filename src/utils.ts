@@ -52,7 +52,24 @@ export async function getCcacheBinaryPath(): Promise<string> {
       "silent": true
     };
 
-    g_ccachePath = (await Exec.getExecOutput(platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+    switch (Process.platform) {
+      case 'darwin':
+      case 'linux':
+        g_ccachePath = (await Exec.getExecOutput("which ccache", [], execOptions)).stdout.trim();
+        break;
+      case 'win32':
+        switch (Core.getInput("windows_compile_environment")) {
+          case 'msvc':
+            g_ccachePath = (await Exec.getExecOutput("where ccache", [], execOptions)).stdout.trim();
+            break;
+          case 'msys2':
+            g_ccachePath = (await Exec.getExecOutput(platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+            break;
+        }
+        break;
+      default:
+        break;
+    }
   }
   return g_ccachePath;
 }
@@ -65,6 +82,7 @@ export async function getCcacheConfigPath(): Promise<string> {
       return Path.join(OS.homedir(), ".ccache", "ccache.conf");
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
+        case 'msvc':
         case 'msys2':
           return Path.join(await getCachePath(), "ccache.conf");
         default:
@@ -75,7 +93,7 @@ export async function getCcacheConfigPath(): Promise<string> {
   }
 }
 
-export function getCcacheSymlinksPath(): string {
+export async function getCcacheSymlinksPath(): Promise<string> {
   switch (Process.platform) {
     case 'darwin':
       return "/usr/local/opt/ccache/libexec";
@@ -83,6 +101,8 @@ export function getCcacheSymlinksPath(): string {
       return "/usr/lib/ccache";
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
+        case 'msvc':
+          return await getCcacheBinaryPath();
         case 'msys2': {
           // `MSYSTEM_PREFIX` isn't available since this is not inside msys2 shell
           // and so we mimic it
@@ -159,6 +179,7 @@ export function isSupportedPlatform(): boolean {
 
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
+        case 'msvc':
         case 'msys2':
           return true;
         default:
@@ -196,9 +217,10 @@ export function platformExecWrap(command: string): string {
 
     case 'win32':
       switch (Core.getInput("windows_compile_environment")) {
+        case 'msvc':
+          return command;
         case 'msys2':
           return `msys2 -c "${command.replace(/"/g, '\\"')}"`;
-
         default:
           return "";
       }
@@ -218,5 +240,5 @@ export async function removeCcacheConfig(): Promise<void> {
 }
 
 export function sudoCommandWrap(command: string): string {
-  return ((Process.getuid() !== 0) ? "sudo " : "") + command;
+  return ((Process.getuid!() !== 0) ? "sudo " : "") + command;
 }

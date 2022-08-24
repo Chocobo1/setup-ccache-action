@@ -27,7 +27,7 @@ inputs:
   windows_compile_environment:
     description: "Specify which compiler environment you are going to use on Windows image.
       Note that this field (a single value) is mandatory if you use this action on a Windows image.
-      Available options are: ['msys2']"
+      Available options are: ['msvc', 'msys2']"
     default: ""
     required: false
 

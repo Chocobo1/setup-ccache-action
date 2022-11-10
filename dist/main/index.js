@@ -1431,7 +1431,6 @@ const file_command_1 = __nccwpck_require__(717);
 const utils_1 = __nccwpck_require__(5278);
 const os = __importStar(__nccwpck_require__(2037));
 const path = __importStar(__nccwpck_require__(1017));
-const uuid_1 = __nccwpck_require__(8974);
 const oidc_utils_1 = __nccwpck_require__(8041);
 /**
  * The code to exit an action
@@ -1461,20 +1460,9 @@ function exportVariable(name, val) {
     process.env[name] = convertedVal;
     const filePath = process.env['GITHUB_ENV'] || '';
     if (filePath) {
-        const delimiter = `ghadelimiter_${uuid_1.v4()}`;
-        // These should realistically never happen, but just in case someone finds a way to exploit uuid generation let's not allow keys or values that contain the delimiter.
-        if (name.includes(delimiter)) {
-            throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
-        }
-        if (convertedVal.includes(delimiter)) {
-            throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
-        }
-        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
-        file_command_1.issueCommand('ENV', commandValue);
+        return file_command_1.issueFileCommand('ENV', file_command_1.prepareKeyValueMessage(name, val));
     }
-    else {
-        command_1.issueCommand('set-env', { name }, convertedVal);
-    }
+    command_1.issueCommand('set-env', { name }, convertedVal);
 }
 exports.exportVariable = exportVariable;
 /**
@@ -1492,7 +1480,7 @@ exports.setSecret = setSecret;
 function addPath(inputPath) {
     const filePath = process.env['GITHUB_PATH'] || '';
     if (filePath) {
-        file_command_1.issueCommand('PATH', inputPath);
+        file_command_1.issueFileCommand('PATH', inputPath);
     }
     else {
         command_1.issueCommand('add-path', {}, inputPath);
@@ -1532,7 +1520,10 @@ function getMultilineInput(name, options) {
     const inputs = getInput(name, options)
         .split('\n')
         .filter(x => x !== '');
-    return inputs;
+    if (options && options.trimWhitespace === false) {
+        return inputs;
+    }
+    return inputs.map(input => input.trim());
 }
 exports.getMultilineInput = getMultilineInput;
 /**
@@ -1565,8 +1556,12 @@ exports.getBooleanInput = getBooleanInput;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setOutput(name, value) {
+    const filePath = process.env['GITHUB_OUTPUT'] || '';
+    if (filePath) {
+        return file_command_1.issueFileCommand('OUTPUT', file_command_1.prepareKeyValueMessage(name, value));
+    }
     process.stdout.write(os.EOL);
-    command_1.issueCommand('set-output', { name }, value);
+    command_1.issueCommand('set-output', { name }, utils_1.toCommandValue(value));
 }
 exports.setOutput = setOutput;
 /**
@@ -1695,7 +1690,11 @@ exports.group = group;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function saveState(name, value) {
-    command_1.issueCommand('save-state', { name }, value);
+    const filePath = process.env['GITHUB_STATE'] || '';
+    if (filePath) {
+        return file_command_1.issueFileCommand('STATE', file_command_1.prepareKeyValueMessage(name, value));
+    }
+    command_1.issueCommand('save-state', { name }, utils_1.toCommandValue(value));
 }
 exports.saveState = saveState;
 /**
@@ -1761,13 +1760,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.issueCommand = void 0;
+exports.prepareKeyValueMessage = exports.issueFileCommand = void 0;
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const fs = __importStar(__nccwpck_require__(7147));
 const os = __importStar(__nccwpck_require__(2037));
+const uuid_1 = __nccwpck_require__(8974);
 const utils_1 = __nccwpck_require__(5278);
-function issueCommand(command, message) {
+function issueFileCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
         throw new Error(`Unable to find environment variable for file command ${command}`);
@@ -1779,7 +1779,22 @@ function issueCommand(command, message) {
         encoding: 'utf8'
     });
 }
-exports.issueCommand = issueCommand;
+exports.issueFileCommand = issueFileCommand;
+function prepareKeyValueMessage(key, value) {
+    const delimiter = `ghadelimiter_${uuid_1.v4()}`;
+    const convertedValue = utils_1.toCommandValue(value);
+    // These should realistically never happen, but just in case someone finds a
+    // way to exploit uuid generation let's not allow keys or values that contain
+    // the delimiter.
+    if (key.includes(delimiter)) {
+        throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
+    }
+    if (convertedValue.includes(delimiter)) {
+        throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
+    }
+    return `${key}<<${delimiter}${os.EOL}${convertedValue}${os.EOL}${delimiter}`;
+}
+exports.prepareKeyValueMessage = prepareKeyValueMessage;
 //# sourceMappingURL=file-command.js.map
 
 /***/ }),
@@ -6494,15 +6509,16 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 var uuid = __nccwpck_require__(3415);
 var util = __nccwpck_require__(3837);
-var tslib = __nccwpck_require__(2107);
+var tslib = __nccwpck_require__(4351);
 var xml2js = __nccwpck_require__(6189);
-var abortController = __nccwpck_require__(2557);
+var coreUtil = __nccwpck_require__(1333);
 var logger$1 = __nccwpck_require__(3233);
 var coreAuth = __nccwpck_require__(9645);
 var os = __nccwpck_require__(2037);
 var http = __nccwpck_require__(3685);
 var https = __nccwpck_require__(5687);
 var tough = __nccwpck_require__(8165);
+var abortController = __nccwpck_require__(2557);
 var tunnel = __nccwpck_require__(4294);
 var stream = __nccwpck_require__(2781);
 var FormData = __nccwpck_require__(6279);
@@ -6725,7 +6741,7 @@ const Constants = {
     /**
      * The core-http version
      */
-    coreHttpVersion: "2.2.6",
+    coreHttpVersion: "2.3.1",
     /**
      * Specifies HTTP.
      */
@@ -7642,7 +7658,8 @@ function isSpecialXmlProperty(propertyName, options) {
     return [XML_ATTRKEY, options.xmlCharKey].includes(propertyName);
 }
 function deserializeCompositeType(serializer, mapper, responseBody, objectName, options) {
-    var _a;
+    var _a, _b;
+    const xmlCharKey = (_a = options.xmlCharKey) !== null && _a !== void 0 ? _a : XML_CHARKEY;
     if (getPolymorphicDiscriminatorRecursively(serializer, mapper)) {
         mapper = getPolymorphicMapper(serializer, mapper, responseBody, "serializedName");
     }
@@ -7673,6 +7690,16 @@ function deserializeCompositeType(serializer, mapper, responseBody, objectName, 
             if (propertyMapper.xmlIsAttribute && responseBody[XML_ATTRKEY]) {
                 instance[key] = serializer.deserialize(propertyMapper, responseBody[XML_ATTRKEY][xmlName], propertyObjectName, options);
             }
+            else if (propertyMapper.xmlIsMsText) {
+                if (responseBody[xmlCharKey] !== undefined) {
+                    instance[key] = responseBody[xmlCharKey];
+                }
+                else if (typeof responseBody === "string") {
+                    // The special case where xml parser parses "<Name>content</Name>" into JSON of
+                    //   `{ name: "content"}` instead of `{ name: { "_": "content" }}`
+                    instance[key] = responseBody;
+                }
+            }
             else {
                 const propertyName = xmlElementName || xmlName || serializedName;
                 if (propertyMapper.xmlIsWrapped) {
@@ -7691,7 +7718,7 @@ function deserializeCompositeType(serializer, mapper, responseBody, objectName, 
                       xmlName is "Cors" and xmlElementName is"CorsRule".
                     */
                     const wrapped = responseBody[xmlName];
-                    const elementList = (_a = wrapped === null || wrapped === void 0 ? void 0 : wrapped[xmlElementName]) !== null && _a !== void 0 ? _a : [];
+                    const elementList = (_b = wrapped === null || wrapped === void 0 ? void 0 : wrapped[xmlElementName]) !== null && _b !== void 0 ? _b : [];
                     instance[key] = serializer.deserialize(propertyMapper, elementList, propertyObjectName, options);
                 }
                 else {
@@ -9117,7 +9144,11 @@ class NodeFetchHttpClient {
             body = uploadReportStream;
         }
         const platformSpecificRequestInit = await this.prepareRequest(httpRequest);
-        const requestInit = Object.assign({ body: body, headers: httpRequest.headers.rawHeaders(), method: httpRequest.method, signal: abortController$1.signal, redirect: "manual" }, platformSpecificRequestInit);
+        const requestInit = Object.assign({ body: body, headers: httpRequest.headers.rawHeaders(), method: httpRequest.method, 
+            // the types for RequestInit are from the browser, which expects AbortSignal to
+            // have `reason` and `throwIfAborted`, but these don't exist on our polyfill
+            // for Node.
+            signal: abortController$1.signal, redirect: "manual" }, platformSpecificRequestInit);
         let operationResponse;
         try {
             const response = await this.fetch(httpRequest.url, requestInit);
@@ -9612,7 +9643,7 @@ function deserializeResponseBody(jsonContentTypes, xmlContentTypes, response, op
                 parsedResponse.parsedBody = response.status >= 200 && response.status < 300;
             }
             if (responseSpec.headersMapper) {
-                parsedResponse.parsedHeaders = operationSpec.serializer.deserialize(responseSpec.headersMapper, parsedResponse.headers.rawHeaders(), "operationRes.parsedHeaders", options);
+                parsedResponse.parsedHeaders = operationSpec.serializer.deserialize(responseSpec.headersMapper, parsedResponse.headers.toJson(), "operationRes.parsedHeaders", options);
             }
         }
         return parsedResponse;
@@ -9678,7 +9709,7 @@ function handleErrorResponse(parsedResponse, operationSpec, responseSpec) {
         }
         // If error response has headers, try to deserialize it using default header mapper
         if (parsedResponse.headers && defaultHeadersMapper) {
-            error.response.parsedHeaders = operationSpec.serializer.deserialize(defaultHeadersMapper, parsedResponse.headers.rawHeaders(), "operationRes.parsedHeaders");
+            error.response.parsedHeaders = operationSpec.serializer.deserialize(defaultHeadersMapper, parsedResponse.headers.toJson(), "operationRes.parsedHeaders");
         }
     }
     catch (defaultError) {
@@ -9880,60 +9911,6 @@ function updateRetryData(retryOptions, retryData = { retryCount: 0, retryInterva
 }
 
 // Copyright (c) Microsoft Corporation.
-// Licensed under the MIT license.
-/**
- * Helper TypeGuard that checks if the value is not null or undefined.
- * @param thing - Anything
- * @internal
- */
-function isDefined(thing) {
-    return typeof thing !== "undefined" && thing !== null;
-}
-
-// Copyright (c) Microsoft Corporation.
-const StandardAbortMessage$1 = "The operation was aborted.";
-/**
- * A wrapper for setTimeout that resolves a promise after delayInMs milliseconds.
- * @param delayInMs - The number of milliseconds to be delayed.
- * @param value - The value to be resolved with after a timeout of t milliseconds.
- * @param options - The options for delay - currently abort options
- *   @param abortSignal - The abortSignal associated with containing operation.
- *   @param abortErrorMsg - The abort error message associated with containing operation.
- * @returns - Resolved promise
- */
-function delay(delayInMs, value, options) {
-    return new Promise((resolve, reject) => {
-        let timer = undefined;
-        let onAborted = undefined;
-        const rejectOnAbort = () => {
-            return reject(new abortController.AbortError((options === null || options === void 0 ? void 0 : options.abortErrorMsg) ? options === null || options === void 0 ? void 0 : options.abortErrorMsg : StandardAbortMessage$1));
-        };
-        const removeListeners = () => {
-            if ((options === null || options === void 0 ? void 0 : options.abortSignal) && onAborted) {
-                options.abortSignal.removeEventListener("abort", onAborted);
-            }
-        };
-        onAborted = () => {
-            if (isDefined(timer)) {
-                clearTimeout(timer);
-            }
-            removeListeners();
-            return rejectOnAbort();
-        };
-        if ((options === null || options === void 0 ? void 0 : options.abortSignal) && options.abortSignal.aborted) {
-            return rejectOnAbort();
-        }
-        timer = setTimeout(() => {
-            removeListeners();
-            resolve(value);
-        }, delayInMs);
-        if (options === null || options === void 0 ? void 0 : options.abortSignal) {
-            options.abortSignal.addEventListener("abort", onAborted);
-        }
-    });
-}
-
-// Copyright (c) Microsoft Corporation.
 /**
  * Policy that retries the request as many times as configured for as long as the max retry time interval specified, each retry waiting longer to begin than the last time.
  * @param retryCount - Maximum number of retries.
@@ -10013,7 +9990,7 @@ async function retry$1(policy, request, response, retryData, requestError) {
     if (!isAborted && shouldRetry(policy.retryCount, shouldPolicyRetry, retryData, response)) {
         logger.info(`Retrying request in ${retryData.retryInterval}`);
         try {
-            await delay(retryData.retryInterval);
+            await coreUtil.delay(retryData.retryInterval);
             const res = await policy._nextPolicy.sendRequest(request.clone());
             return retry$1(policy, request, res, retryData);
         }
@@ -10308,7 +10285,7 @@ async function beginRefresh(getAccessToken, retryIntervalInMs, timeoutInMs) {
     }
     let token = await tryGetAccessToken();
     while (token === null) {
-        await delay(retryIntervalInMs);
+        await coreUtil.delay(retryIntervalInMs);
         token = await tryGetAccessToken();
     }
     return token;
@@ -10840,7 +10817,7 @@ async function getRegistrationStatus(policy, url, originalRequest) {
         return true;
     }
     else {
-        await delay(policy._retryTimeout * 1000);
+        await coreUtil.delay(policy._retryTimeout * 1000);
         return getRegistrationStatus(policy, url, originalRequest);
     }
 }
@@ -10932,7 +10909,7 @@ async function retry(policy, request, operationResponse, err, retryData) {
     if (shouldRetry(policy.retryCount, shouldPolicyRetry, retryData, operationResponse, err)) {
         // If previous operation ended with an error and the policy allows a retry, do that
         try {
-            await delay(retryData.retryInterval);
+            await coreUtil.delay(retryData.retryInterval);
             return policy._nextPolicy.sendRequest(request.clone());
         }
         catch (nestedErr) {
@@ -11007,7 +10984,7 @@ class ThrottlingRetryPolicy extends BaseRequestPolicy {
             const delayInMs = ThrottlingRetryPolicy.parseRetryAfterHeader(retryAfterHeader);
             if (delayInMs) {
                 this.numberOfRetries += 1;
-                await delay(delayInMs, undefined, {
+                await coreUtil.delay(delayInMs, {
                     abortSignal: httpRequest.abortSignal,
                     abortErrorMsg: StandardAbortMessage,
                 });
@@ -11963,6 +11940,10 @@ class TopicCredentials extends ApiKeyCredentials {
     }
 }
 
+Object.defineProperty(exports, "delay", ({
+    enumerable: true,
+    get: function () { return coreUtil.delay; }
+}));
 Object.defineProperty(exports, "isTokenCredential", ({
     enumerable: true,
     get: function () { return coreAuth.isTokenCredential; }
@@ -11990,7 +11971,6 @@ exports.applyMixins = applyMixins;
 exports.bearerTokenAuthenticationPolicy = bearerTokenAuthenticationPolicy;
 exports.createPipelineFromOptions = createPipelineFromOptions;
 exports.createSpanFunction = createSpanFunction;
-exports.delay = delay;
 exports.deserializationPolicy = deserializationPolicy;
 exports.deserializeResponseBody = deserializeResponseBody;
 exports.disableResponseDecompressionPolicy = disableResponseDecompressionPolicy;
@@ -13657,7 +13637,10 @@ class CookieJar {
     validators.validate(validators.isObject(options), options);
     this.rejectPublicSuffixes = options.rejectPublicSuffixes;
     this.enableLooseMode = !!options.looseMode;
-    this.allowSpecialUseDomain = !!options.allowSpecialUseDomain;
+    this.allowSpecialUseDomain =
+      typeof options.allowSpecialUseDomain === "boolean"
+        ? options.allowSpecialUseDomain
+        : true;
     this.store = store || new MemoryCookieStore();
     this.prefixSecurity = getNormalizedPrefixSecurity(options.prefixSecurity);
     this._cloneSync = syncWrap("clone");
@@ -14384,7 +14367,7 @@ class MemoryCookieStore extends Store {
     const results = [];
     if (typeof allowSpecialUseDomain === "function") {
       cb = allowSpecialUseDomain;
-      allowSpecialUseDomain = false;
+      allowSpecialUseDomain = true;
     }
     if (!domain) {
       return cb(null, []);
@@ -14752,22 +14735,25 @@ const SPECIAL_USE_DOMAINS = [
   "test"
 ];
 
+const SPECIAL_TREATMENT_DOMAINS = ["localhost", "invalid"];
+
 function getPublicSuffix(domain, options = {}) {
   const domainParts = domain.split(".");
   const topLevelDomain = domainParts[domainParts.length - 1];
   const allowSpecialUseDomain = !!options.allowSpecialUseDomain;
   const ignoreError = !!options.ignoreError;
 
-  if (
-    allowSpecialUseDomain &&
-    domainParts.length > 1 &&
-    SPECIAL_USE_DOMAINS.includes(topLevelDomain)
-  ) {
-    // If the right-most label in the name is a special-use domain (e.g. bananas.apple.localhost),
-    // then don't use PSL. This is because most special-use domains are not listed on PSL.
-    const secondLevelDomain = domainParts[domainParts.length - 2];
-    // In aforementioned example, the eTLD/pubSuf will be apple.localhost
-    return `${secondLevelDomain}.${topLevelDomain}`;
+  if (allowSpecialUseDomain && SPECIAL_USE_DOMAINS.includes(topLevelDomain)) {
+    if (domainParts.length > 1) {
+      const secondLevelDomain = domainParts[domainParts.length - 2];
+      // In aforementioned example, the eTLD/pubSuf will be apple.localhost
+      return `${secondLevelDomain}.${topLevelDomain}`;
+    } else if (SPECIAL_TREATMENT_DOMAINS.includes(topLevelDomain)) {
+      // For a single word special use domain, e.g. 'localhost' or 'invalid', per RFC 6761,
+      // "Application software MAY recognize {localhost/invalid} names as special, or
+      // MAY pass them to name resolution APIs as they would for other domain names."
+      return `${topLevelDomain}`;
+    }
   }
 
   if (!ignoreError && SPECIAL_USE_DOMAINS.includes(topLevelDomain)) {
@@ -15021,331 +15007,7 @@ exports.validate = validate;
 /***/ ((module) => {
 
 // generated by genversion
-module.exports = '4.1.0'
-
-
-/***/ }),
-
-/***/ 2107:
-/***/ ((module) => {
-
-/******************************************************************************
-Copyright (c) Microsoft Corporation.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-***************************************************************************** */
-/* global global, define, System, Reflect, Promise */
-var __extends;
-var __assign;
-var __rest;
-var __decorate;
-var __param;
-var __metadata;
-var __awaiter;
-var __generator;
-var __exportStar;
-var __values;
-var __read;
-var __spread;
-var __spreadArrays;
-var __spreadArray;
-var __await;
-var __asyncGenerator;
-var __asyncDelegator;
-var __asyncValues;
-var __makeTemplateObject;
-var __importStar;
-var __importDefault;
-var __classPrivateFieldGet;
-var __classPrivateFieldSet;
-var __classPrivateFieldIn;
-var __createBinding;
-(function (factory) {
-    var root = typeof global === "object" ? global : typeof self === "object" ? self : typeof this === "object" ? this : {};
-    if (typeof define === "function" && define.amd) {
-        define("tslib", ["exports"], function (exports) { factory(createExporter(root, createExporter(exports))); });
-    }
-    else if ( true && typeof module.exports === "object") {
-        factory(createExporter(root, createExporter(module.exports)));
-    }
-    else {
-        factory(createExporter(root));
-    }
-    function createExporter(exports, previous) {
-        if (exports !== root) {
-            if (typeof Object.create === "function") {
-                Object.defineProperty(exports, "__esModule", { value: true });
-            }
-            else {
-                exports.__esModule = true;
-            }
-        }
-        return function (id, v) { return exports[id] = previous ? previous(id, v) : v; };
-    }
-})
-(function (exporter) {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-
-    __extends = function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-
-    __assign = Object.assign || function (t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
-        }
-        return t;
-    };
-
-    __rest = function (s, e) {
-        var t = {};
-        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-            t[p] = s[p];
-        if (s != null && typeof Object.getOwnPropertySymbols === "function")
-            for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-                if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                    t[p[i]] = s[p[i]];
-            }
-        return t;
-    };
-
-    __decorate = function (decorators, target, key, desc) {
-        var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-        if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-        else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-        return c > 3 && r && Object.defineProperty(target, key, r), r;
-    };
-
-    __param = function (paramIndex, decorator) {
-        return function (target, key) { decorator(target, key, paramIndex); }
-    };
-
-    __metadata = function (metadataKey, metadataValue) {
-        if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
-    };
-
-    __awaiter = function (thisArg, _arguments, P, generator) {
-        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-        return new (P || (P = Promise))(function (resolve, reject) {
-            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-            step((generator = generator.apply(thisArg, _arguments || [])).next());
-        });
-    };
-
-    __generator = function (thisArg, body) {
-        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-        function verb(n) { return function (v) { return step([n, v]); }; }
-        function step(op) {
-            if (f) throw new TypeError("Generator is already executing.");
-            while (_) try {
-                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-                if (y = 0, t) op = [op[0] & 2, t.value];
-                switch (op[0]) {
-                    case 0: case 1: t = op; break;
-                    case 4: _.label++; return { value: op[1], done: false };
-                    case 5: _.label++; y = op[1]; op = [0]; continue;
-                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                    default:
-                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                        if (t[2]) _.ops.pop();
-                        _.trys.pop(); continue;
-                }
-                op = body.call(thisArg, _);
-            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-        }
-    };
-
-    __exportStar = function(m, o) {
-        for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(o, p)) __createBinding(o, m, p);
-    };
-
-    __createBinding = Object.create ? (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        var desc = Object.getOwnPropertyDescriptor(m, k);
-        if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-            desc = { enumerable: true, get: function() { return m[k]; } };
-        }
-        Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        o[k2] = m[k];
-    });
-
-    __values = function (o) {
-        var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-        if (m) return m.call(o);
-        if (o && typeof o.length === "number") return {
-            next: function () {
-                if (o && i >= o.length) o = void 0;
-                return { value: o && o[i++], done: !o };
-            }
-        };
-        throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
-    };
-
-    __read = function (o, n) {
-        var m = typeof Symbol === "function" && o[Symbol.iterator];
-        if (!m) return o;
-        var i = m.call(o), r, ar = [], e;
-        try {
-            while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
-        }
-        catch (error) { e = { error: error }; }
-        finally {
-            try {
-                if (r && !r.done && (m = i["return"])) m.call(i);
-            }
-            finally { if (e) throw e.error; }
-        }
-        return ar;
-    };
-
-    /** @deprecated */
-    __spread = function () {
-        for (var ar = [], i = 0; i < arguments.length; i++)
-            ar = ar.concat(__read(arguments[i]));
-        return ar;
-    };
-
-    /** @deprecated */
-    __spreadArrays = function () {
-        for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-        for (var r = Array(s), k = 0, i = 0; i < il; i++)
-            for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-                r[k] = a[j];
-        return r;
-    };
-
-    __spreadArray = function (to, from, pack) {
-        if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-            if (ar || !(i in from)) {
-                if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-                ar[i] = from[i];
-            }
-        }
-        return to.concat(ar || Array.prototype.slice.call(from));
-    };
-
-    __await = function (v) {
-        return this instanceof __await ? (this.v = v, this) : new __await(v);
-    };
-
-    __asyncGenerator = function (thisArg, _arguments, generator) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var g = generator.apply(thisArg, _arguments || []), i, q = [];
-        return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
-        function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
-        function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);  }
-        function fulfill(value) { resume("next", value); }
-        function reject(value) { resume("throw", value); }
-        function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
-    };
-
-    __asyncDelegator = function (o) {
-        var i, p;
-        return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
-        function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
-    };
-
-    __asyncValues = function (o) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var m = o[Symbol.asyncIterator], i;
-        return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-        function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-        function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-    };
-
-    __makeTemplateObject = function (cooked, raw) {
-        if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
-        return cooked;
-    };
-
-    var __setModuleDefault = Object.create ? (function(o, v) {
-        Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-        o["default"] = v;
-    };
-
-    __importStar = function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-
-    __importDefault = function (mod) {
-        return (mod && mod.__esModule) ? mod : { "default": mod };
-    };
-
-    __classPrivateFieldGet = function (receiver, state, kind, f) {
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-        return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-
-    __classPrivateFieldSet = function (receiver, state, value, kind, f) {
-        if (kind === "m") throw new TypeError("Private method is not writable");
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-        return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
-    };
-
-    __classPrivateFieldIn = function (state, receiver) {
-        if (receiver === null || (typeof receiver !== "object" && typeof receiver !== "function")) throw new TypeError("Cannot use 'in' operator on non-object");
-        return typeof state === "function" ? receiver === state : state.has(receiver);
-    };
-
-    exporter("__extends", __extends);
-    exporter("__assign", __assign);
-    exporter("__rest", __rest);
-    exporter("__decorate", __decorate);
-    exporter("__param", __param);
-    exporter("__metadata", __metadata);
-    exporter("__awaiter", __awaiter);
-    exporter("__generator", __generator);
-    exporter("__exportStar", __exportStar);
-    exporter("__createBinding", __createBinding);
-    exporter("__values", __values);
-    exporter("__read", __read);
-    exporter("__spread", __spread);
-    exporter("__spreadArrays", __spreadArrays);
-    exporter("__spreadArray", __spreadArray);
-    exporter("__await", __await);
-    exporter("__asyncGenerator", __asyncGenerator);
-    exporter("__asyncDelegator", __asyncDelegator);
-    exporter("__asyncValues", __asyncValues);
-    exporter("__makeTemplateObject", __makeTemplateObject);
-    exporter("__importStar", __importStar);
-    exporter("__importDefault", __importDefault);
-    exporter("__classPrivateFieldGet", __classPrivateFieldGet);
-    exporter("__classPrivateFieldSet", __classPrivateFieldSet);
-    exporter("__classPrivateFieldIn", __classPrivateFieldIn);
-});
+module.exports = '4.1.2'
 
 
 /***/ }),
@@ -16005,6 +15667,721 @@ exports["default"] = _default;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 var logger$1 = __nccwpck_require__(3233);
+var abortController = __nccwpck_require__(2557);
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * The `@azure/logger` configuration for this package.
+ * @internal
+ */
+const logger = logger$1.createClientLogger("core-lro");
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * The default time interval to wait before sending the next polling request.
+ */
+const POLL_INTERVAL_IN_MS = 2000;
+/**
+ * The closed set of terminal states.
+ */
+const terminalStates = ["succeeded", "canceled", "failed"];
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Deserializes the state
+ */
+function deserializeState(serializedState) {
+    try {
+        return JSON.parse(serializedState).state;
+    }
+    catch (e) {
+        throw new Error(`Unable to deserialize input state: ${serializedState}`);
+    }
+}
+function setStateError(inputs) {
+    const { state, stateProxy } = inputs;
+    return (error) => {
+        stateProxy.setError(state, error);
+        stateProxy.setFailed(state);
+        throw error;
+    };
+}
+function processOperationStatus(result) {
+    const { state, stateProxy, status, isDone, processResult, response, setErrorAsResult } = result;
+    switch (status) {
+        case "succeeded": {
+            stateProxy.setSucceeded(state);
+            break;
+        }
+        case "failed": {
+            stateProxy.setError(state, new Error(`The long-running operation has failed`));
+            stateProxy.setFailed(state);
+            break;
+        }
+        case "canceled": {
+            stateProxy.setCanceled(state);
+            break;
+        }
+    }
+    if ((isDone === null || isDone === void 0 ? void 0 : isDone(response, state)) ||
+        (isDone === undefined &&
+            ["succeeded", "canceled"].concat(setErrorAsResult ? [] : ["failed"]).includes(status))) {
+        stateProxy.setResult(state, buildResult({
+            response,
+            state,
+            processResult,
+        }));
+    }
+}
+function buildResult(inputs) {
+    const { processResult, response, state } = inputs;
+    return processResult ? processResult(response, state) : response;
+}
+/**
+ * Initiates the long-running operation.
+ */
+async function initOperation(inputs) {
+    const { init, stateProxy, processResult, getOperationStatus, withOperationLocation, setErrorAsResult, } = inputs;
+    const { operationLocation, resourceLocation, metadata, response } = await init();
+    if (operationLocation)
+        withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(operationLocation, false);
+    const config = {
+        metadata,
+        operationLocation,
+        resourceLocation,
+    };
+    logger.verbose(`LRO: Operation description:`, config);
+    const state = stateProxy.initState(config);
+    const status = getOperationStatus({ response, state, operationLocation });
+    processOperationStatus({ state, status, stateProxy, response, setErrorAsResult, processResult });
+    return state;
+}
+async function pollOperationHelper(inputs) {
+    const { poll, state, stateProxy, operationLocation, getOperationStatus, getResourceLocation, options, } = inputs;
+    const response = await poll(operationLocation, options).catch(setStateError({
+        state,
+        stateProxy,
+    }));
+    const status = getOperationStatus(response, state);
+    logger.verbose(`LRO: Status:\n\tPolling from: ${state.config.operationLocation}\n\tOperation status: ${status}\n\tPolling status: ${terminalStates.includes(status) ? "Stopped" : "Running"}`);
+    if (status === "succeeded") {
+        const resourceLocation = getResourceLocation(response, state);
+        if (resourceLocation !== undefined) {
+            return {
+                response: await poll(resourceLocation).catch(setStateError({ state, stateProxy })),
+                status,
+            };
+        }
+    }
+    return { response, status };
+}
+/** Polls the long-running operation. */
+async function pollOperation(inputs) {
+    const { poll, state, stateProxy, options, getOperationStatus, getResourceLocation, getOperationLocation, withOperationLocation, getPollingInterval, processResult, updateState, setDelay, isDone, setErrorAsResult, } = inputs;
+    const { operationLocation } = state.config;
+    if (operationLocation !== undefined) {
+        const { response, status } = await pollOperationHelper({
+            poll,
+            getOperationStatus,
+            state,
+            stateProxy,
+            operationLocation,
+            getResourceLocation,
+            options,
+        });
+        processOperationStatus({
+            status,
+            response,
+            state,
+            stateProxy,
+            isDone,
+            processResult,
+            setErrorAsResult,
+        });
+        if (!terminalStates.includes(status)) {
+            const intervalInMs = getPollingInterval === null || getPollingInterval === void 0 ? void 0 : getPollingInterval(response);
+            if (intervalInMs)
+                setDelay(intervalInMs);
+            const location = getOperationLocation === null || getOperationLocation === void 0 ? void 0 : getOperationLocation(response, state);
+            if (location !== undefined) {
+                const isUpdated = operationLocation !== location;
+                state.config.operationLocation = location;
+                withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(location, isUpdated);
+            }
+            else
+                withOperationLocation === null || withOperationLocation === void 0 ? void 0 : withOperationLocation(operationLocation, false);
+        }
+        updateState === null || updateState === void 0 ? void 0 : updateState(state, response);
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+function getOperationLocationPollingUrl(inputs) {
+    const { azureAsyncOperation, operationLocation } = inputs;
+    return operationLocation !== null && operationLocation !== void 0 ? operationLocation : azureAsyncOperation;
+}
+function getLocationHeader(rawResponse) {
+    return rawResponse.headers["location"];
+}
+function getOperationLocationHeader(rawResponse) {
+    return rawResponse.headers["operation-location"];
+}
+function getAzureAsyncOperationHeader(rawResponse) {
+    return rawResponse.headers["azure-asyncoperation"];
+}
+function findResourceLocation(inputs) {
+    const { location, requestMethod, requestPath, resourceLocationConfig } = inputs;
+    switch (requestMethod) {
+        case "PUT": {
+            return requestPath;
+        }
+        case "DELETE": {
+            return undefined;
+        }
+        default: {
+            switch (resourceLocationConfig) {
+                case "azure-async-operation": {
+                    return undefined;
+                }
+                case "original-uri": {
+                    return requestPath;
+                }
+                case "location":
+                default: {
+                    return location;
+                }
+            }
+        }
+    }
+}
+function inferLroMode(inputs) {
+    const { rawResponse, requestMethod, requestPath, resourceLocationConfig } = inputs;
+    const operationLocation = getOperationLocationHeader(rawResponse);
+    const azureAsyncOperation = getAzureAsyncOperationHeader(rawResponse);
+    const pollingUrl = getOperationLocationPollingUrl({ operationLocation, azureAsyncOperation });
+    const location = getLocationHeader(rawResponse);
+    const normalizedRequestMethod = requestMethod === null || requestMethod === void 0 ? void 0 : requestMethod.toLocaleUpperCase();
+    if (pollingUrl !== undefined) {
+        return {
+            mode: "OperationLocation",
+            operationLocation: pollingUrl,
+            resourceLocation: findResourceLocation({
+                requestMethod: normalizedRequestMethod,
+                location,
+                requestPath,
+                resourceLocationConfig,
+            }),
+        };
+    }
+    else if (location !== undefined) {
+        return {
+            mode: "ResourceLocation",
+            operationLocation: location,
+        };
+    }
+    else if (normalizedRequestMethod === "PUT" && requestPath) {
+        return {
+            mode: "Body",
+            operationLocation: requestPath,
+        };
+    }
+    else {
+        return undefined;
+    }
+}
+function transformStatus(inputs) {
+    const { status, statusCode } = inputs;
+    if (typeof status !== "string" && status !== undefined) {
+        throw new Error(`Polling was unsuccessful. Expected status to have a string value or no value but it has instead: ${status}. This doesn't necessarily indicate the operation has failed. Check your Azure subscription or resource status for more information.`);
+    }
+    switch (status === null || status === void 0 ? void 0 : status.toLocaleLowerCase()) {
+        case undefined:
+            return toOperationStatus(statusCode);
+        case "succeeded":
+            return "succeeded";
+        case "failed":
+            return "failed";
+        case "running":
+        case "accepted":
+        case "started":
+        case "canceling":
+        case "cancelling":
+            return "running";
+        case "canceled":
+        case "cancelled":
+            return "canceled";
+        default: {
+            logger.warning(`LRO: unrecognized operation status: ${status}`);
+            return status;
+        }
+    }
+}
+function getStatus(rawResponse) {
+    var _a;
+    const { status } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
+    return transformStatus({ status, statusCode: rawResponse.statusCode });
+}
+function getProvisioningState(rawResponse) {
+    var _a, _b;
+    const { properties, provisioningState } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
+    const status = (_b = properties === null || properties === void 0 ? void 0 : properties.provisioningState) !== null && _b !== void 0 ? _b : provisioningState;
+    return transformStatus({ status, statusCode: rawResponse.statusCode });
+}
+function toOperationStatus(statusCode) {
+    if (statusCode === 202) {
+        return "running";
+    }
+    else if (statusCode < 300) {
+        return "succeeded";
+    }
+    else {
+        return "failed";
+    }
+}
+function parseRetryAfter({ rawResponse }) {
+    const retryAfter = rawResponse.headers["retry-after"];
+    if (retryAfter !== undefined) {
+        // Retry-After header value is either in HTTP date format, or in seconds
+        const retryAfterInSeconds = parseInt(retryAfter);
+        return isNaN(retryAfterInSeconds)
+            ? calculatePollingIntervalFromDate(new Date(retryAfter))
+            : retryAfterInSeconds * 1000;
+    }
+    return undefined;
+}
+function calculatePollingIntervalFromDate(retryAfterDate) {
+    const timeNow = Math.floor(new Date().getTime());
+    const retryAfterTime = retryAfterDate.getTime();
+    if (timeNow < retryAfterTime) {
+        return retryAfterTime - timeNow;
+    }
+    return undefined;
+}
+function getStatusFromInitialResponse(inputs) {
+    const { response, state, operationLocation } = inputs;
+    function helper() {
+        var _a;
+        const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+        switch (mode) {
+            case undefined:
+                return toOperationStatus(response.rawResponse.statusCode);
+            case "Body":
+                return getOperationStatus(response, state);
+            default:
+                return "running";
+        }
+    }
+    const status = helper();
+    return status === "running" && operationLocation === undefined ? "succeeded" : status;
+}
+/**
+ * Initiates the long-running operation.
+ */
+async function initHttpOperation(inputs) {
+    const { stateProxy, resourceLocationConfig, processResult, lro, setErrorAsResult } = inputs;
+    return initOperation({
+        init: async () => {
+            const response = await lro.sendInitialRequest();
+            const config = inferLroMode({
+                rawResponse: response.rawResponse,
+                requestPath: lro.requestPath,
+                requestMethod: lro.requestMethod,
+                resourceLocationConfig,
+            });
+            return Object.assign({ response, operationLocation: config === null || config === void 0 ? void 0 : config.operationLocation, resourceLocation: config === null || config === void 0 ? void 0 : config.resourceLocation }, ((config === null || config === void 0 ? void 0 : config.mode) ? { metadata: { mode: config.mode } } : {}));
+        },
+        stateProxy,
+        processResult: processResult
+            ? ({ flatResponse }, state) => processResult(flatResponse, state)
+            : ({ flatResponse }) => flatResponse,
+        getOperationStatus: getStatusFromInitialResponse,
+        setErrorAsResult,
+    });
+}
+function getOperationLocation({ rawResponse }, state) {
+    var _a;
+    const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+    switch (mode) {
+        case "OperationLocation": {
+            return getOperationLocationPollingUrl({
+                operationLocation: getOperationLocationHeader(rawResponse),
+                azureAsyncOperation: getAzureAsyncOperationHeader(rawResponse),
+            });
+        }
+        case "ResourceLocation": {
+            return getLocationHeader(rawResponse);
+        }
+        case "Body":
+        default: {
+            return undefined;
+        }
+    }
+}
+function getOperationStatus({ rawResponse }, state) {
+    var _a;
+    const mode = (_a = state.config.metadata) === null || _a === void 0 ? void 0 : _a["mode"];
+    switch (mode) {
+        case "OperationLocation": {
+            return getStatus(rawResponse);
+        }
+        case "ResourceLocation": {
+            return toOperationStatus(rawResponse.statusCode);
+        }
+        case "Body": {
+            return getProvisioningState(rawResponse);
+        }
+        default:
+            throw new Error(`Internal error: Unexpected operation mode: ${mode}`);
+    }
+}
+function getResourceLocation({ flatResponse }, state) {
+    if (typeof flatResponse === "object") {
+        const resourceLocation = flatResponse.resourceLocation;
+        if (resourceLocation !== undefined) {
+            state.config.resourceLocation = resourceLocation;
+        }
+    }
+    return state.config.resourceLocation;
+}
+/** Polls the long-running operation. */
+async function pollHttpOperation(inputs) {
+    const { lro, stateProxy, options, processResult, updateState, setDelay, state, setErrorAsResult, } = inputs;
+    return pollOperation({
+        state,
+        stateProxy,
+        setDelay,
+        processResult: processResult
+            ? ({ flatResponse }, inputState) => processResult(flatResponse, inputState)
+            : ({ flatResponse }) => flatResponse,
+        updateState,
+        getPollingInterval: parseRetryAfter,
+        getOperationLocation,
+        getOperationStatus,
+        getResourceLocation,
+        options,
+        /**
+         * The expansion here is intentional because `lro` could be an object that
+         * references an inner this, so we need to preserve a reference to it.
+         */
+        poll: async (location, inputOptions) => lro.sendPollRequest(location, inputOptions),
+        setErrorAsResult,
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Map an optional value through a function
+ * @internal
+ */
+const maybemap = (value, f) => value === undefined ? undefined : f(value);
+const INTERRUPTED = new Error("The poller is already stopped");
+/**
+ * A promise that delays resolution until a certain amount of time (in milliseconds) has passed, with facilities for
+ * robust cancellation.
+ *
+ * ### Example:
+ *
+ * ```javascript
+ * let toCancel;
+ *
+ * // Wait 20 seconds, and optionally allow the function to be cancelled.
+ * await delayMs(20000, (cancel) => { toCancel = cancel });
+ *
+ * // ... if `toCancel` is called before the 20 second timer expires, then the delayMs promise will reject.
+ * ```
+ *
+ * @internal
+ * @param ms - the number of milliseconds to wait before resolving
+ * @param cb - a callback that can provide the caller with a cancellation function
+ */
+function delayMs(ms) {
+    let aborted = false;
+    let toReject;
+    return Object.assign(new Promise((resolve, reject) => {
+        let token;
+        toReject = () => {
+            maybemap(token, clearTimeout);
+            reject(INTERRUPTED);
+        };
+        // In the rare case that the operation is _already_ aborted, we will reject instantly. This could happen, for
+        // example, if the user calls the cancellation function immediately without yielding execution.
+        if (aborted) {
+            toReject();
+        }
+        else {
+            token = setTimeout(resolve, ms);
+        }
+    }), {
+        cancel: () => {
+            aborted = true;
+            toReject === null || toReject === void 0 ? void 0 : toReject();
+        },
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+const createStateProxy$1 = () => ({
+    /**
+     * The state at this point is created to be of type OperationState<TResult>.
+     * It will be updated later to be of type TState when the
+     * customer-provided callback, `updateState`, is called during polling.
+     */
+    initState: (config) => ({ status: "running", config }),
+    setCanceled: (state) => (state.status = "canceled"),
+    setError: (state, error) => (state.error = error),
+    setResult: (state, result) => (state.result = result),
+    setRunning: (state) => (state.status = "running"),
+    setSucceeded: (state) => (state.status = "succeeded"),
+    setFailed: (state) => (state.status = "failed"),
+    getError: (state) => state.error,
+    getResult: (state) => state.result,
+    isCanceled: (state) => state.status === "canceled",
+    isFailed: (state) => state.status === "failed",
+    isRunning: (state) => state.status === "running",
+    isSucceeded: (state) => state.status === "succeeded",
+});
+/**
+ * Returns a poller factory.
+ */
+function buildCreatePoller(inputs) {
+    const { getOperationLocation, getStatusFromInitialResponse, getStatusFromPollResponse, getResourceLocation, getPollingInterval, resolveOnUnsuccessful, } = inputs;
+    return async ({ init, poll }, options) => {
+        const { processResult, updateState, withOperationLocation: withOperationLocationCallback, intervalInMs = POLL_INTERVAL_IN_MS, restoreFrom, } = options || {};
+        const stateProxy = createStateProxy$1();
+        const withOperationLocation = withOperationLocationCallback
+            ? (() => {
+                let called = false;
+                return (operationLocation, isUpdated) => {
+                    if (isUpdated)
+                        withOperationLocationCallback(operationLocation);
+                    else if (!called)
+                        withOperationLocationCallback(operationLocation);
+                    called = true;
+                };
+            })()
+            : undefined;
+        const state = restoreFrom
+            ? deserializeState(restoreFrom)
+            : await initOperation({
+                init,
+                stateProxy,
+                processResult,
+                getOperationStatus: getStatusFromInitialResponse,
+                withOperationLocation,
+                setErrorAsResult: !resolveOnUnsuccessful,
+            });
+        let resultPromise;
+        let cancelJob;
+        const abortController$1 = new abortController.AbortController();
+        const handlers = new Map();
+        const handleProgressEvents = async () => handlers.forEach((h) => h(state));
+        let currentPollIntervalInMs = intervalInMs;
+        const poller = {
+            getOperationState: () => state,
+            getResult: () => state.result,
+            isDone: () => ["succeeded", "failed", "canceled"].includes(state.status),
+            isStopped: () => resultPromise === undefined,
+            stopPolling: () => {
+                abortController$1.abort();
+                cancelJob === null || cancelJob === void 0 ? void 0 : cancelJob();
+            },
+            toString: () => JSON.stringify({
+                state,
+            }),
+            onProgress: (callback) => {
+                const s = Symbol();
+                handlers.set(s, callback);
+                return () => handlers.delete(s);
+            },
+            pollUntilDone: (pollOptions) => (resultPromise !== null && resultPromise !== void 0 ? resultPromise : (resultPromise = (async () => {
+                const { abortSignal: inputAbortSignal } = pollOptions || {};
+                const { signal: abortSignal } = inputAbortSignal
+                    ? new abortController.AbortController([inputAbortSignal, abortController$1.signal])
+                    : abortController$1;
+                if (!poller.isDone()) {
+                    await poller.poll({ abortSignal });
+                    while (!poller.isDone()) {
+                        const delay = delayMs(currentPollIntervalInMs);
+                        cancelJob = delay.cancel;
+                        await delay;
+                        await poller.poll({ abortSignal });
+                    }
+                }
+                switch (state.status) {
+                    case "succeeded": {
+                        return poller.getResult();
+                    }
+                    case "canceled": {
+                        if (!resolveOnUnsuccessful)
+                            throw new Error("Operation was canceled");
+                        return poller.getResult();
+                    }
+                    case "failed": {
+                        if (!resolveOnUnsuccessful)
+                            throw state.error;
+                        return poller.getResult();
+                    }
+                    case "notStarted":
+                    case "running": {
+                        // Unreachable
+                        throw new Error(`polling completed without succeeding or failing`);
+                    }
+                }
+            })().finally(() => {
+                resultPromise = undefined;
+            }))),
+            async poll(pollOptions) {
+                await pollOperation({
+                    poll,
+                    state,
+                    stateProxy,
+                    getOperationLocation,
+                    withOperationLocation,
+                    getPollingInterval,
+                    getOperationStatus: getStatusFromPollResponse,
+                    getResourceLocation,
+                    processResult,
+                    updateState,
+                    options: pollOptions,
+                    setDelay: (pollIntervalInMs) => {
+                        currentPollIntervalInMs = pollIntervalInMs;
+                    },
+                    setErrorAsResult: !resolveOnUnsuccessful,
+                });
+                await handleProgressEvents();
+                if (state.status === "canceled" && !resolveOnUnsuccessful) {
+                    throw new Error("Operation was canceled");
+                }
+                if (state.status === "failed" && !resolveOnUnsuccessful) {
+                    throw state.error;
+                }
+            },
+        };
+        return poller;
+    };
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Creates a poller that can be used to poll a long-running operation.
+ * @param lro - Description of the long-running operation
+ * @param options - options to configure the poller
+ * @returns an initialized poller
+ */
+async function createHttpPoller(lro, options) {
+    const { resourceLocationConfig, intervalInMs, processResult, restoreFrom, updateState, withOperationLocation, resolveOnUnsuccessful = false, } = options || {};
+    return buildCreatePoller({
+        getStatusFromInitialResponse,
+        getStatusFromPollResponse: getOperationStatus,
+        getOperationLocation,
+        getResourceLocation,
+        getPollingInterval: parseRetryAfter,
+        resolveOnUnsuccessful,
+    })({
+        init: async () => {
+            const response = await lro.sendInitialRequest();
+            const config = inferLroMode({
+                rawResponse: response.rawResponse,
+                requestPath: lro.requestPath,
+                requestMethod: lro.requestMethod,
+                resourceLocationConfig,
+            });
+            return Object.assign({ response, operationLocation: config === null || config === void 0 ? void 0 : config.operationLocation, resourceLocation: config === null || config === void 0 ? void 0 : config.resourceLocation }, ((config === null || config === void 0 ? void 0 : config.mode) ? { metadata: { mode: config.mode } } : {}));
+        },
+        poll: lro.sendPollRequest,
+    }, {
+        intervalInMs,
+        withOperationLocation,
+        restoreFrom,
+        updateState,
+        processResult: processResult
+            ? ({ flatResponse }, state) => processResult(flatResponse, state)
+            : ({ flatResponse }) => flatResponse,
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+const createStateProxy = () => ({
+    initState: (config) => ({ config, isStarted: true }),
+    setCanceled: (state) => (state.isCancelled = true),
+    setError: (state, error) => (state.error = error),
+    setResult: (state, result) => (state.result = result),
+    setRunning: (state) => (state.isStarted = true),
+    setSucceeded: (state) => (state.isCompleted = true),
+    setFailed: () => {
+        /** empty body */
+    },
+    getError: (state) => state.error,
+    getResult: (state) => state.result,
+    isCanceled: (state) => !!state.isCancelled,
+    isFailed: (state) => !!state.error,
+    isRunning: (state) => !!state.isStarted,
+    isSucceeded: (state) => Boolean(state.isCompleted && !state.isCancelled && !state.error),
+});
+class GenericPollOperation {
+    constructor(state, lro, setErrorAsResult, lroResourceLocationConfig, processResult, updateState, isDone) {
+        this.state = state;
+        this.lro = lro;
+        this.setErrorAsResult = setErrorAsResult;
+        this.lroResourceLocationConfig = lroResourceLocationConfig;
+        this.processResult = processResult;
+        this.updateState = updateState;
+        this.isDone = isDone;
+    }
+    setPollerConfig(pollerConfig) {
+        this.pollerConfig = pollerConfig;
+    }
+    async update(options) {
+        var _a;
+        const stateProxy = createStateProxy();
+        if (!this.state.isStarted) {
+            this.state = Object.assign(Object.assign({}, this.state), (await initHttpOperation({
+                lro: this.lro,
+                stateProxy,
+                resourceLocationConfig: this.lroResourceLocationConfig,
+                processResult: this.processResult,
+                setErrorAsResult: this.setErrorAsResult,
+            })));
+        }
+        const updateState = this.updateState;
+        const isDone = this.isDone;
+        if (!this.state.isCompleted && this.state.error === undefined) {
+            await pollHttpOperation({
+                lro: this.lro,
+                state: this.state,
+                stateProxy,
+                processResult: this.processResult,
+                updateState: updateState
+                    ? (state, { rawResponse }) => updateState(state, rawResponse)
+                    : undefined,
+                isDone: isDone
+                    ? ({ flatResponse }, state) => isDone(flatResponse, state)
+                    : undefined,
+                options,
+                setDelay: (intervalInMs) => {
+                    this.pollerConfig.intervalInMs = intervalInMs;
+                },
+                setErrorAsResult: this.setErrorAsResult,
+            });
+        }
+        (_a = options === null || options === void 0 ? void 0 : options.fireProgress) === null || _a === void 0 ? void 0 : _a.call(options, this.state);
+        return this;
+    }
+    async cancel() {
+        logger.error("`cancelOperation` is deprecated because it wasn't implemented");
+        return this;
+    }
+    /**
+     * Serializes the Poller operation.
+     */
+    toString() {
+        return JSON.stringify({
+            state: this.state,
+        });
+    }
+}
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
@@ -16159,6 +16536,8 @@ class Poller {
      * @param operation - Must contain the basic properties of `PollOperation<State, TResult>`.
      */
     constructor(operation) {
+        /** controls whether to throw an error if the operation failed or was canceled. */
+        this.resolveOnUnsuccessful = false;
         this.stopped = true;
         this.pollProgressCallbacks = [];
         this.operation = operation;
@@ -16177,12 +16556,12 @@ class Poller {
      * Starts a loop that will break only if the poller is done
      * or if the poller is stopped.
      */
-    async startPolling() {
+    async startPolling(pollOptions = {}) {
         if (this.stopped) {
             this.stopped = false;
         }
         while (!this.isStopped() && !this.isDone()) {
-            await this.poll();
+            await this.poll(pollOptions);
             await this.delay();
         }
     }
@@ -16196,15 +16575,10 @@ class Poller {
      */
     async pollOnce(options = {}) {
         if (!this.isDone()) {
-            try {
-                this.operation = await this.operation.update({
-                    abortSignal: options.abortSignal,
-                    fireProgress: this.fireProgress.bind(this),
-                });
-            }
-            catch (e) {
-                this.operation.state.error = e;
-            }
+            this.operation = await this.operation.update({
+                abortSignal: options.abortSignal,
+                fireProgress: this.fireProgress.bind(this),
+            });
         }
         this.processUpdatedState();
     }
@@ -16248,30 +16622,34 @@ class Poller {
     processUpdatedState() {
         if (this.operation.state.error) {
             this.stopped = true;
-            this.reject(this.operation.state.error);
-            throw this.operation.state.error;
+            if (!this.resolveOnUnsuccessful) {
+                this.reject(this.operation.state.error);
+                throw this.operation.state.error;
+            }
         }
         if (this.operation.state.isCancelled) {
             this.stopped = true;
-            const error = new PollerCancelledError("Poller cancelled");
-            this.reject(error);
-            throw error;
+            if (!this.resolveOnUnsuccessful) {
+                const error = new PollerCancelledError("Operation was canceled");
+                this.reject(error);
+                throw error;
+            }
         }
-        else if (this.isDone() && this.resolve) {
+        if (this.isDone() && this.resolve) {
             // If the poller has finished polling, this means we now have a result.
             // However, it can be the case that TResult is instantiated to void, so
             // we are not expecting a result anyway. To assert that we might not
             // have a result eventually after finishing polling, we cast the result
             // to TResult.
-            this.resolve(this.operation.state.result);
+            this.resolve(this.getResult());
         }
     }
     /**
      * Returns a promise that will resolve once the underlying operation is completed.
      */
-    async pollUntilDone() {
+    async pollUntilDone(pollOptions = {}) {
         if (this.stopped) {
-            this.startPolling().catch(this.reject);
+            this.startPolling(pollOptions).catch(this.reject);
         }
         // This is needed because the state could have been updated by
         // `cancelOperation`, e.g. the operation is canceled or an error occurred.
@@ -16404,395 +16782,17 @@ class Poller {
 
 // Copyright (c) Microsoft Corporation.
 /**
- * The `@azure/logger` configuration for this package.
- * @internal
- */
-const logger = logger$1.createClientLogger("core-lro");
-
-// Copyright (c) Microsoft Corporation.
-function throwIfUndefined(input, options = {}) {
-    var _a;
-    if (input === undefined) {
-        throw new Error((_a = options.errorMessage) !== null && _a !== void 0 ? _a : "undefined variable");
-    }
-    return input;
-}
-function updatePollingUrl(inputs) {
-    var _a, _b;
-    const { info, rawResponse } = inputs;
-    switch (info.mode) {
-        case "OperationLocation": {
-            const operationLocation = getOperationLocation(rawResponse);
-            const azureAsyncOperation = getAzureAsyncOperation(rawResponse);
-            info.pollingUrl =
-                (_a = getOperationLocationPollingUrl({ operationLocation, azureAsyncOperation })) !== null && _a !== void 0 ? _a : throwIfUndefined(info.pollingUrl);
-            break;
-        }
-        case "ResourceLocation": {
-            info.pollingUrl = (_b = getLocation(rawResponse)) !== null && _b !== void 0 ? _b : throwIfUndefined(info.pollingUrl);
-            break;
-        }
-    }
-}
-function getOperationLocationPollingUrl(inputs) {
-    const { azureAsyncOperation, operationLocation } = inputs;
-    return operationLocation !== null && operationLocation !== void 0 ? operationLocation : azureAsyncOperation;
-}
-function getLocation(rawResponse) {
-    return rawResponse.headers["location"];
-}
-function getOperationLocation(rawResponse) {
-    return rawResponse.headers["operation-location"];
-}
-function getAzureAsyncOperation(rawResponse) {
-    return rawResponse.headers["azure-asyncoperation"];
-}
-function findResourceLocation(inputs) {
-    const { location, requestMethod, requestPath, lroResourceLocationConfig } = inputs;
-    switch (requestMethod) {
-        case "PUT": {
-            return requestPath;
-        }
-        case "DELETE": {
-            return undefined;
-        }
-        default: {
-            switch (lroResourceLocationConfig) {
-                case "azure-async-operation": {
-                    return undefined;
-                }
-                case "original-uri": {
-                    return requestPath;
-                }
-                case "location":
-                default: {
-                    return location;
-                }
-            }
-        }
-    }
-}
-function inferLroMode(inputs) {
-    const { rawResponse, requestMethod, requestPath, lroResourceLocationConfig } = inputs;
-    const operationLocation = getOperationLocation(rawResponse);
-    const azureAsyncOperation = getAzureAsyncOperation(rawResponse);
-    const location = getLocation(rawResponse);
-    if (operationLocation !== undefined || azureAsyncOperation !== undefined) {
-        return {
-            mode: "OperationLocation",
-            pollingUrl: operationLocation !== null && operationLocation !== void 0 ? operationLocation : azureAsyncOperation,
-            resourceLocation: findResourceLocation({
-                requestMethod,
-                location,
-                requestPath,
-                lroResourceLocationConfig,
-            }),
-        };
-    }
-    else if (location !== undefined) {
-        return {
-            mode: "ResourceLocation",
-            pollingUrl: location,
-        };
-    }
-    else if (requestMethod === "PUT") {
-        return {
-            mode: "Body",
-            pollingUrl: requestPath,
-        };
-    }
-    else {
-        return {
-            mode: "None",
-        };
-    }
-}
-class SimpleRestError extends Error {
-    constructor(message, statusCode) {
-        super(message);
-        this.name = "RestError";
-        this.statusCode = statusCode;
-        Object.setPrototypeOf(this, SimpleRestError.prototype);
-    }
-}
-function throwIfError(rawResponse) {
-    const code = rawResponse.statusCode;
-    if (code >= 400) {
-        throw new SimpleRestError(`Received unexpected HTTP status code ${code} while polling. This may indicate a server issue.`, code);
-    }
-}
-function getStatus(rawResponse) {
-    var _a;
-    const { status } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
-    return typeof status === "string" ? status.toLowerCase() : "succeeded";
-}
-function getProvisioningState(rawResponse) {
-    var _a, _b;
-    const { properties, provisioningState } = (_a = rawResponse.body) !== null && _a !== void 0 ? _a : {};
-    const state = (_b = properties === null || properties === void 0 ? void 0 : properties.provisioningState) !== null && _b !== void 0 ? _b : provisioningState;
-    return typeof state === "string" ? state.toLowerCase() : "succeeded";
-}
-function isCanceled(operation) {
-    const { state, operationStatus } = operation;
-    if (["canceled", "cancelled"].includes(operationStatus)) {
-        state.isCancelled = true;
-        return true;
-    }
-    return false;
-}
-function isTerminal(operation) {
-    const { state, operationStatus } = operation;
-    if (operationStatus === "failed") {
-        throw new Error(`The long-running operation has failed.`);
-    }
-    return operationStatus === "succeeded" || isCanceled({ state, operationStatus });
-}
-function getOperationStatus(result) {
-    const { rawResponse, state, info, responseKind = "Polling" } = result;
-    throwIfError(rawResponse);
-    switch (info.mode) {
-        case "OperationLocation": {
-            const operationStatus = getStatus(rawResponse);
-            return {
-                operationStatus,
-                shouldStopPolling: responseKind === "Polling" && isTerminal({ state, operationStatus }),
-            };
-        }
-        case "Body": {
-            const operationStatus = getProvisioningState(rawResponse);
-            return {
-                operationStatus,
-                shouldStopPolling: isTerminal({ state, operationStatus }),
-            };
-        }
-        case "ResourceLocation": {
-            const operationStatus = rawResponse.statusCode;
-            return {
-                operationStatus,
-                shouldStopPolling: responseKind === "Polling" && operationStatus !== 202,
-            };
-        }
-        case "None": {
-            return {
-                shouldStopPolling: true,
-            };
-        }
-    }
-}
-function shouldStopPolling(result) {
-    const { rawResponse, state, info, responseKind = "Polling" } = result;
-    const { shouldStopPolling: isPollingStopped, operationStatus } = getOperationStatus({
-        info,
-        rawResponse,
-        state,
-        responseKind,
-    });
-    if (operationStatus) {
-        logger.verbose(`LRO: Status:\n\tPolling from: ${info.pollingUrl}\n\tOperation status: ${operationStatus}\n\tPolling status: ${isPollingStopped ? "Stopped" : "Running"}`);
-    }
-    else {
-        logger.verbose(`LRO: Status: Not an LRO`);
-    }
-    return isPollingStopped;
-}
-/**
- * Creates a polling operation.
- */
-function createPoll(lroPrimitives) {
-    return async (path, pollerConfig, getLroStatusFromResponse) => {
-        const response = await lroPrimitives.sendPollRequest(path);
-        const retryAfter = response.rawResponse.headers["retry-after"];
-        if (retryAfter !== undefined) {
-            // Retry-After header value is either in HTTP date format, or in seconds
-            const retryAfterInSeconds = parseInt(retryAfter);
-            pollerConfig.intervalInMs = isNaN(retryAfterInSeconds)
-                ? calculatePollingIntervalFromDate(new Date(retryAfter), pollerConfig.intervalInMs)
-                : retryAfterInSeconds * 1000;
-        }
-        return getLroStatusFromResponse(response);
-    };
-}
-function calculatePollingIntervalFromDate(retryAfterDate, defaultIntervalInMs) {
-    const timeNow = Math.floor(new Date().getTime());
-    const retryAfterTime = retryAfterDate.getTime();
-    if (timeNow < retryAfterTime) {
-        return retryAfterTime - timeNow;
-    }
-    return defaultIntervalInMs;
-}
-function buildResult(inputs) {
-    const { processResult, response, state } = inputs;
-    return processResult ? processResult(response, state) : response;
-}
-/**
- * Creates a callback to be used to initialize the polling operation state.
- */
-function createStateInitializer(inputs) {
-    const { requestMethod, requestPath, state, lroResourceLocationConfig, processResult } = inputs;
-    return (response) => {
-        const { rawResponse } = response;
-        state.isStarted = true;
-        state.config = inferLroMode({
-            rawResponse,
-            requestPath,
-            requestMethod,
-            lroResourceLocationConfig,
-        });
-        logger.verbose(`LRO: Operation description:`, state.config);
-        /** short circuit before polling */
-        if (shouldStopPolling({
-            rawResponse,
-            state,
-            info: state.config,
-            responseKind: "Initial",
-        })) {
-            state.result = buildResult({
-                response: response.flatResponse,
-                state: state,
-                processResult,
-            });
-            state.isCompleted = true;
-        }
-    };
-}
-function createGetLroStatusFromResponse(inputs) {
-    const { lro, state, info } = inputs;
-    const location = info.resourceLocation;
-    return (response) => {
-        const isTerminalStatus = shouldStopPolling({
-            info,
-            rawResponse: response.rawResponse,
-            state,
-        });
-        return Object.assign(Object.assign({}, response), { done: isTerminalStatus && !location, next: !(isTerminalStatus && location)
-                ? undefined
-                : () => lro.sendPollRequest(location).then((res) => (Object.assign(Object.assign({}, res), { done: true }))) });
-    };
-}
-
-// Copyright (c) Microsoft Corporation.
-class GenericPollOperation {
-    constructor(state, lro, lroResourceLocationConfig, processResult, updateState, isDone) {
-        this.state = state;
-        this.lro = lro;
-        this.lroResourceLocationConfig = lroResourceLocationConfig;
-        this.processResult = processResult;
-        this.updateState = updateState;
-        this.isDone = isDone;
-    }
-    setPollerConfig(pollerConfig) {
-        this.pollerConfig = pollerConfig;
-    }
-    /**
-     * General update function for LROPoller, the general process is as follows
-     * 1. Check initial operation result to determine the strategy to use
-     *  - Strategies: Location, Azure-AsyncOperation, Original Uri
-     * 2. Check if the operation result has a terminal state
-     *  - Terminal state will be determined by each strategy
-     *  2.1 If it is terminal state Check if a final GET request is required, if so
-     *      send final GET request and return result from operation. If no final GET
-     *      is required, just return the result from operation.
-     *      - Determining what to call for final request is responsibility of each strategy
-     *  2.2 If it is not terminal state, call the polling operation and go to step 1
-     *      - Determining what to call for polling is responsibility of each strategy
-     *      - Strategies will always use the latest URI for polling if provided otherwise
-     *        the last known one
-     */
-    async update(options) {
-        var _a, _b, _c;
-        const state = this.state;
-        let lastResponse = undefined;
-        if (!state.isStarted) {
-            const initializeState = createStateInitializer({
-                state,
-                requestPath: this.lro.requestPath,
-                requestMethod: this.lro.requestMethod,
-                lroResourceLocationConfig: this.lroResourceLocationConfig,
-                processResult: this.processResult,
-            });
-            lastResponse = await this.lro.sendInitialRequest();
-            initializeState(lastResponse);
-        }
-        if (!state.isCompleted) {
-            const config = throwIfUndefined(state.config, {
-                errorMessage: "Bad state: LRO mode is undefined. Check if the serialized state is well-formed.",
-            });
-            if (!this.poll) {
-                this.poll = createPoll(this.lro);
-            }
-            if (!this.getLroStatusFromResponse) {
-                const isDone = this.isDone;
-                this.getLroStatusFromResponse = isDone
-                    ? (response) => (Object.assign(Object.assign({}, response), { done: isDone(response.flatResponse, this.state) }))
-                    : createGetLroStatusFromResponse({
-                        lro: this.lro,
-                        info: config,
-                        state: this.state,
-                    });
-            }
-            const currentState = await this.poll(throwIfUndefined(config.pollingUrl), this.pollerConfig, this.getLroStatusFromResponse);
-            if (currentState.done) {
-                state.result = buildResult({
-                    response: currentState.flatResponse,
-                    state,
-                    processResult: this.processResult,
-                });
-                state.isCompleted = true;
-            }
-            else {
-                this.poll = (_a = currentState.next) !== null && _a !== void 0 ? _a : this.poll;
-                updatePollingUrl({
-                    rawResponse: currentState.rawResponse,
-                    info: config,
-                });
-                /** for backward compatability */
-                state.pollingURL = config.pollingUrl;
-            }
-            lastResponse = currentState;
-        }
-        if (lastResponse) {
-            (_b = this.updateState) === null || _b === void 0 ? void 0 : _b.call(this, state, lastResponse === null || lastResponse === void 0 ? void 0 : lastResponse.rawResponse);
-        }
-        else {
-            logger.error(`LRO: no response was received`);
-        }
-        (_c = options === null || options === void 0 ? void 0 : options.fireProgress) === null || _c === void 0 ? void 0 : _c.call(options, state);
-        return this;
-    }
-    async cancel() {
-        logger.error("`cancelOperation` is deprecated because it wasn't implemented");
-        return this;
-    }
-    /**
-     * Serializes the Poller operation.
-     */
-    toString() {
-        return JSON.stringify({
-            state: this.state,
-        });
-    }
-}
-
-// Copyright (c) Microsoft Corporation.
-function deserializeState(serializedState) {
-    try {
-        return JSON.parse(serializedState).state;
-    }
-    catch (e) {
-        throw new Error(`LroEngine: Unable to deserialize state: ${serializedState}`);
-    }
-}
-/**
  * The LRO Engine, a class that performs polling.
  */
 class LroEngine extends Poller {
     constructor(lro, options) {
-        const { intervalInMs = 2000, resumeFrom } = options || {};
+        const { intervalInMs = POLL_INTERVAL_IN_MS, resumeFrom, resolveOnUnsuccessful = false, isDone, lroResourceLocationConfig, processResult, updateState, } = options || {};
         const state = resumeFrom
             ? deserializeState(resumeFrom)
             : {};
-        const operation = new GenericPollOperation(state, lro, options === null || options === void 0 ? void 0 : options.lroResourceLocationConfig, options === null || options === void 0 ? void 0 : options.processResult, options === null || options === void 0 ? void 0 : options.updateState, options === null || options === void 0 ? void 0 : options.isDone);
+        const operation = new GenericPollOperation(state, lro, !resolveOnUnsuccessful, lroResourceLocationConfig, processResult, updateState, isDone);
         super(operation);
+        this.resolveOnUnsuccessful = resolveOnUnsuccessful;
         this.config = { intervalInMs: intervalInMs };
         operation.setPollerConfig(this.config);
     }
@@ -16808,6 +16808,7 @@ exports.LroEngine = LroEngine;
 exports.Poller = Poller;
 exports.PollerCancelledError = PollerCancelledError;
 exports.PollerStoppedError = PollerStoppedError;
+exports.createHttpPoller = createHttpPoller;
 //# sourceMappingURL=index.js.map
 
 
@@ -16821,7 +16822,7 @@ exports.PollerStoppedError = PollerStoppedError;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 
-var tslib = __nccwpck_require__(6429);
+var tslib = __nccwpck_require__(4351);
 
 // Copyright (c) Microsoft Corporation.
 /**
@@ -16852,31 +16853,51 @@ function getPagedAsyncIterator(pagedResult) {
 }
 function getItemAsyncIterator(pagedResult) {
     return tslib.__asyncGenerator(this, arguments, function* getItemAsyncIterator_1() {
-        var e_1, _a;
+        var e_1, _a, e_2, _b;
         const pages = getPageAsyncIterator(pagedResult);
         const firstVal = yield tslib.__await(pages.next());
         // if the result does not have an array shape, i.e. TPage = TElement, then we return it as is
         if (!Array.isArray(firstVal.value)) {
-            yield yield tslib.__await(firstVal.value);
-            // `pages` is of type `AsyncIterableIterator<TPage>` but TPage = TElement in this case
-            yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(pages)));
+            // can extract elements from this page
+            const { toElements } = pagedResult;
+            if (toElements) {
+                yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(toElements(firstVal.value))));
+                try {
+                    for (var pages_1 = tslib.__asyncValues(pages), pages_1_1; pages_1_1 = yield tslib.__await(pages_1.next()), !pages_1_1.done;) {
+                        const page = pages_1_1.value;
+                        yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(toElements(page))));
+                    }
+                }
+                catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                finally {
+                    try {
+                        if (pages_1_1 && !pages_1_1.done && (_a = pages_1.return)) yield tslib.__await(_a.call(pages_1));
+                    }
+                    finally { if (e_1) throw e_1.error; }
+                }
+            }
+            else {
+                yield yield tslib.__await(firstVal.value);
+                // `pages` is of type `AsyncIterableIterator<TPage>` but TPage = TElement in this case
+                yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(pages)));
+            }
         }
         else {
             yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(firstVal.value)));
             try {
-                for (var pages_1 = tslib.__asyncValues(pages), pages_1_1; pages_1_1 = yield tslib.__await(pages_1.next()), !pages_1_1.done;) {
-                    const page = pages_1_1.value;
+                for (var pages_2 = tslib.__asyncValues(pages), pages_2_1; pages_2_1 = yield tslib.__await(pages_2.next()), !pages_2_1.done;) {
+                    const page = pages_2_1.value;
                     // pages is of type `AsyncIterableIterator<TPage>` so `page` is of type `TPage`. In this branch,
                     // it must be the case that `TPage = TElement[]`
                     yield tslib.__await(yield* tslib.__asyncDelegator(tslib.__asyncValues(page)));
                 }
             }
-            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            catch (e_2_1) { e_2 = { error: e_2_1 }; }
             finally {
                 try {
-                    if (pages_1_1 && !pages_1_1.done && (_a = pages_1.return)) yield tslib.__await(_a.call(pages_1));
+                    if (pages_2_1 && !pages_2_1.done && (_b = pages_2.return)) yield tslib.__await(_b.call(pages_2));
                 }
-                finally { if (e_1) throw e_1.error; }
+                finally { if (e_2) throw e_2.error; }
             }
         }
     });
@@ -16885,9 +16906,15 @@ function getPageAsyncIterator(pagedResult, options = {}) {
     return tslib.__asyncGenerator(this, arguments, function* getPageAsyncIterator_1() {
         const { pageLink, maxPageSize } = options;
         let response = yield tslib.__await(pagedResult.getPage(pageLink !== null && pageLink !== void 0 ? pageLink : pagedResult.firstPageLink, maxPageSize));
+        if (!response) {
+            return yield tslib.__await(void 0);
+        }
         yield yield tslib.__await(response.page);
         while (response.nextPageLink) {
             response = yield tslib.__await(pagedResult.getPage(response.nextPageLink, maxPageSize));
+            if (!response) {
+                return yield tslib.__await(void 0);
+            }
             yield yield tslib.__await(response.page);
         }
     });
@@ -16895,330 +16922,6 @@ function getPageAsyncIterator(pagedResult, options = {}) {
 
 exports.getPagedAsyncIterator = getPagedAsyncIterator;
 //# sourceMappingURL=index.js.map
-
-
-/***/ }),
-
-/***/ 6429:
-/***/ ((module) => {
-
-/******************************************************************************
-Copyright (c) Microsoft Corporation.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-***************************************************************************** */
-/* global global, define, System, Reflect, Promise */
-var __extends;
-var __assign;
-var __rest;
-var __decorate;
-var __param;
-var __metadata;
-var __awaiter;
-var __generator;
-var __exportStar;
-var __values;
-var __read;
-var __spread;
-var __spreadArrays;
-var __spreadArray;
-var __await;
-var __asyncGenerator;
-var __asyncDelegator;
-var __asyncValues;
-var __makeTemplateObject;
-var __importStar;
-var __importDefault;
-var __classPrivateFieldGet;
-var __classPrivateFieldSet;
-var __classPrivateFieldIn;
-var __createBinding;
-(function (factory) {
-    var root = typeof global === "object" ? global : typeof self === "object" ? self : typeof this === "object" ? this : {};
-    if (typeof define === "function" && define.amd) {
-        define("tslib", ["exports"], function (exports) { factory(createExporter(root, createExporter(exports))); });
-    }
-    else if ( true && typeof module.exports === "object") {
-        factory(createExporter(root, createExporter(module.exports)));
-    }
-    else {
-        factory(createExporter(root));
-    }
-    function createExporter(exports, previous) {
-        if (exports !== root) {
-            if (typeof Object.create === "function") {
-                Object.defineProperty(exports, "__esModule", { value: true });
-            }
-            else {
-                exports.__esModule = true;
-            }
-        }
-        return function (id, v) { return exports[id] = previous ? previous(id, v) : v; };
-    }
-})
-(function (exporter) {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-
-    __extends = function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-
-    __assign = Object.assign || function (t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
-        }
-        return t;
-    };
-
-    __rest = function (s, e) {
-        var t = {};
-        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-            t[p] = s[p];
-        if (s != null && typeof Object.getOwnPropertySymbols === "function")
-            for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-                if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                    t[p[i]] = s[p[i]];
-            }
-        return t;
-    };
-
-    __decorate = function (decorators, target, key, desc) {
-        var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-        if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-        else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-        return c > 3 && r && Object.defineProperty(target, key, r), r;
-    };
-
-    __param = function (paramIndex, decorator) {
-        return function (target, key) { decorator(target, key, paramIndex); }
-    };
-
-    __metadata = function (metadataKey, metadataValue) {
-        if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
-    };
-
-    __awaiter = function (thisArg, _arguments, P, generator) {
-        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-        return new (P || (P = Promise))(function (resolve, reject) {
-            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-            step((generator = generator.apply(thisArg, _arguments || [])).next());
-        });
-    };
-
-    __generator = function (thisArg, body) {
-        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-        function verb(n) { return function (v) { return step([n, v]); }; }
-        function step(op) {
-            if (f) throw new TypeError("Generator is already executing.");
-            while (_) try {
-                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-                if (y = 0, t) op = [op[0] & 2, t.value];
-                switch (op[0]) {
-                    case 0: case 1: t = op; break;
-                    case 4: _.label++; return { value: op[1], done: false };
-                    case 5: _.label++; y = op[1]; op = [0]; continue;
-                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                    default:
-                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                        if (t[2]) _.ops.pop();
-                        _.trys.pop(); continue;
-                }
-                op = body.call(thisArg, _);
-            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-        }
-    };
-
-    __exportStar = function(m, o) {
-        for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(o, p)) __createBinding(o, m, p);
-    };
-
-    __createBinding = Object.create ? (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        var desc = Object.getOwnPropertyDescriptor(m, k);
-        if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-            desc = { enumerable: true, get: function() { return m[k]; } };
-        }
-        Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        o[k2] = m[k];
-    });
-
-    __values = function (o) {
-        var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-        if (m) return m.call(o);
-        if (o && typeof o.length === "number") return {
-            next: function () {
-                if (o && i >= o.length) o = void 0;
-                return { value: o && o[i++], done: !o };
-            }
-        };
-        throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
-    };
-
-    __read = function (o, n) {
-        var m = typeof Symbol === "function" && o[Symbol.iterator];
-        if (!m) return o;
-        var i = m.call(o), r, ar = [], e;
-        try {
-            while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
-        }
-        catch (error) { e = { error: error }; }
-        finally {
-            try {
-                if (r && !r.done && (m = i["return"])) m.call(i);
-            }
-            finally { if (e) throw e.error; }
-        }
-        return ar;
-    };
-
-    /** @deprecated */
-    __spread = function () {
-        for (var ar = [], i = 0; i < arguments.length; i++)
-            ar = ar.concat(__read(arguments[i]));
-        return ar;
-    };
-
-    /** @deprecated */
-    __spreadArrays = function () {
-        for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-        for (var r = Array(s), k = 0, i = 0; i < il; i++)
-            for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-                r[k] = a[j];
-        return r;
-    };
-
-    __spreadArray = function (to, from, pack) {
-        if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-            if (ar || !(i in from)) {
-                if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-                ar[i] = from[i];
-            }
-        }
-        return to.concat(ar || Array.prototype.slice.call(from));
-    };
-
-    __await = function (v) {
-        return this instanceof __await ? (this.v = v, this) : new __await(v);
-    };
-
-    __asyncGenerator = function (thisArg, _arguments, generator) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var g = generator.apply(thisArg, _arguments || []), i, q = [];
-        return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
-        function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
-        function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);  }
-        function fulfill(value) { resume("next", value); }
-        function reject(value) { resume("throw", value); }
-        function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
-    };
-
-    __asyncDelegator = function (o) {
-        var i, p;
-        return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
-        function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
-    };
-
-    __asyncValues = function (o) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var m = o[Symbol.asyncIterator], i;
-        return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-        function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-        function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-    };
-
-    __makeTemplateObject = function (cooked, raw) {
-        if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
-        return cooked;
-    };
-
-    var __setModuleDefault = Object.create ? (function(o, v) {
-        Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-        o["default"] = v;
-    };
-
-    __importStar = function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-
-    __importDefault = function (mod) {
-        return (mod && mod.__esModule) ? mod : { "default": mod };
-    };
-
-    __classPrivateFieldGet = function (receiver, state, kind, f) {
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-        return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-
-    __classPrivateFieldSet = function (receiver, state, value, kind, f) {
-        if (kind === "m") throw new TypeError("Private method is not writable");
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-        return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
-    };
-
-    __classPrivateFieldIn = function (state, receiver) {
-        if (receiver === null || (typeof receiver !== "object" && typeof receiver !== "function")) throw new TypeError("Cannot use 'in' operator on non-object");
-        return typeof state === "function" ? receiver === state : state.has(receiver);
-    };
-
-    exporter("__extends", __extends);
-    exporter("__assign", __assign);
-    exporter("__rest", __rest);
-    exporter("__decorate", __decorate);
-    exporter("__param", __param);
-    exporter("__metadata", __metadata);
-    exporter("__awaiter", __awaiter);
-    exporter("__generator", __generator);
-    exporter("__exportStar", __exportStar);
-    exporter("__createBinding", __createBinding);
-    exporter("__values", __values);
-    exporter("__read", __read);
-    exporter("__spread", __spread);
-    exporter("__spreadArrays", __spreadArrays);
-    exporter("__spreadArray", __spreadArray);
-    exporter("__await", __await);
-    exporter("__asyncGenerator", __asyncGenerator);
-    exporter("__asyncDelegator", __asyncDelegator);
-    exporter("__asyncValues", __asyncValues);
-    exporter("__makeTemplateObject", __makeTemplateObject);
-    exporter("__importStar", __importStar);
-    exporter("__importDefault", __importDefault);
-    exporter("__classPrivateFieldGet", __classPrivateFieldGet);
-    exporter("__classPrivateFieldSet", __classPrivateFieldSet);
-    exporter("__classPrivateFieldIn", __classPrivateFieldIn);
-});
 
 
 /***/ }),
@@ -17445,6 +17148,211 @@ exports.getTracer = getTracer;
 exports.isSpanContextValid = isSpanContextValid;
 exports.setSpan = setSpan;
 exports.setSpanContext = setSpanContext;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 1333:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+var abortController = __nccwpck_require__(2557);
+var crypto = __nccwpck_require__(6113);
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+var _a;
+/**
+ * A constant that indicates whether the environment the code is running is Node.JS.
+ */
+const isNode = typeof process !== "undefined" && Boolean(process.version) && Boolean((_a = process.versions) === null || _a === void 0 ? void 0 : _a.node);
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Helper TypeGuard that checks if something is defined or not.
+ * @param thing - Anything
+ */
+function isDefined(thing) {
+    return typeof thing !== "undefined" && thing !== null;
+}
+/**
+ * Helper TypeGuard that checks if the input is an object with the specified properties.
+ * @param thing - Anything.
+ * @param properties - The name of the properties that should appear in the object.
+ */
+function isObjectWithProperties(thing, properties) {
+    if (!isDefined(thing) || typeof thing !== "object") {
+        return false;
+    }
+    for (const property of properties) {
+        if (!objectHasProperty(thing, property)) {
+            return false;
+        }
+    }
+    return true;
+}
+/**
+ * Helper TypeGuard that checks if the input is an object with the specified property.
+ * @param thing - Any object.
+ * @param property - The name of the property that should appear in the object.
+ */
+function objectHasProperty(thing, property) {
+    return (isDefined(thing) && typeof thing === "object" && property in thing);
+}
+
+// Copyright (c) Microsoft Corporation.
+const StandardAbortMessage = "The operation was aborted.";
+/**
+ * A wrapper for setTimeout that resolves a promise after timeInMs milliseconds.
+ * @param timeInMs - The number of milliseconds to be delayed.
+ * @param options - The options for delay - currently abort options
+ * @returns Promise that is resolved after timeInMs
+ */
+function delay(timeInMs, options) {
+    return new Promise((resolve, reject) => {
+        let timer = undefined;
+        let onAborted = undefined;
+        const rejectOnAbort = () => {
+            var _a;
+            return reject(new abortController.AbortError((_a = options === null || options === void 0 ? void 0 : options.abortErrorMsg) !== null && _a !== void 0 ? _a : StandardAbortMessage));
+        };
+        const removeListeners = () => {
+            if ((options === null || options === void 0 ? void 0 : options.abortSignal) && onAborted) {
+                options.abortSignal.removeEventListener("abort", onAborted);
+            }
+        };
+        onAborted = () => {
+            if (isDefined(timer)) {
+                clearTimeout(timer);
+            }
+            removeListeners();
+            return rejectOnAbort();
+        };
+        if ((options === null || options === void 0 ? void 0 : options.abortSignal) && options.abortSignal.aborted) {
+            return rejectOnAbort();
+        }
+        timer = setTimeout(() => {
+            removeListeners();
+            resolve();
+        }, timeInMs);
+        if (options === null || options === void 0 ? void 0 : options.abortSignal) {
+            options.abortSignal.addEventListener("abort", onAborted);
+        }
+    });
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Returns a random integer value between a lower and upper bound,
+ * inclusive of both bounds.
+ * Note that this uses Math.random and isn't secure. If you need to use
+ * this for any kind of security purpose, find a better source of random.
+ * @param min - The smallest integer value allowed.
+ * @param max - The largest integer value allowed.
+ */
+function getRandomIntegerInclusive(min, max) {
+    // Make sure inputs are integers.
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    // Pick a random offset from zero to the size of the range.
+    // Since Math.random() can never return 1, we have to make the range one larger
+    // in order to be inclusive of the maximum value after we take the floor.
+    const offset = Math.floor(Math.random() * (max - min + 1));
+    return offset + min;
+}
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+/**
+ * Helper to determine when an input is a generic JS object.
+ * @returns true when input is an object type that is not null, Array, RegExp, or Date.
+ */
+function isObject(input) {
+    return (typeof input === "object" &&
+        input !== null &&
+        !Array.isArray(input) &&
+        !(input instanceof RegExp) &&
+        !(input instanceof Date));
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Typeguard for an error object shape (has name and message)
+ * @param e - Something caught by a catch clause.
+ */
+function isError(e) {
+    if (isObject(e)) {
+        const hasName = typeof e.name === "string";
+        const hasMessage = typeof e.message === "string";
+        return hasName && hasMessage;
+    }
+    return false;
+}
+/**
+ * Given what is thought to be an error object, return the message if possible.
+ * If the message is missing, returns a stringified version of the input.
+ * @param e - Something thrown from a try block
+ * @returns The error message or a string of the input
+ */
+function getErrorMessage(e) {
+    if (isError(e)) {
+        return e.message;
+    }
+    else {
+        let stringified;
+        try {
+            if (typeof e === "object" && e) {
+                stringified = JSON.stringify(e);
+            }
+            else {
+                stringified = String(e);
+            }
+        }
+        catch (err) {
+            stringified = "[unable to stringify input]";
+        }
+        return `Unknown error ${stringified}`;
+    }
+}
+
+// Copyright (c) Microsoft Corporation.
+/**
+ * Generates a SHA-256 HMAC signature.
+ * @param key - The HMAC key represented as a base64 string, used to generate the cryptographic HMAC hash.
+ * @param stringToSign - The data to be signed.
+ * @param encoding - The textual encoding to use for the returned HMAC digest.
+ */
+async function computeSha256Hmac(key, stringToSign, encoding) {
+    const decodedKey = Buffer.from(key, "base64");
+    return crypto.createHmac("sha256", decodedKey).update(stringToSign).digest(encoding);
+}
+/**
+ * Generates a SHA-256 hash.
+ * @param content - The data to be included in the hash.
+ * @param encoding - The textual encoding to use for the returned hash.
+ */
+async function computeSha256Hash(content, encoding) {
+    return crypto.createHash("sha256").update(content).digest(encoding);
+}
+
+exports.computeSha256Hash = computeSha256Hash;
+exports.computeSha256Hmac = computeSha256Hmac;
+exports.delay = delay;
+exports.getErrorMessage = getErrorMessage;
+exports.getRandomIntegerInclusive = getRandomIntegerInclusive;
+exports.isDefined = isDefined;
+exports.isError = isError;
+exports.isNode = isNode;
+exports.isObject = isObject;
+exports.isObjectWithProperties = isObjectWithProperties;
+exports.objectHasProperty = objectHasProperty;
 //# sourceMappingURL=index.js.map
 
 
@@ -17677,7 +17585,7 @@ exports.setLogLevel = setLogLevel;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 var coreHttp = __nccwpck_require__(4607);
-var tslib = __nccwpck_require__(679);
+var tslib = __nccwpck_require__(4351);
 var coreTracing = __nccwpck_require__(4175);
 var logger$1 = __nccwpck_require__(3233);
 var abortController = __nccwpck_require__(2557);
@@ -26171,7 +26079,7 @@ const timeoutInSeconds = {
 const version = {
     parameterPath: "version",
     mapper: {
-        defaultValue: "2021-08-06",
+        defaultValue: "2021-10-04",
         isConstant: true,
         serializedName: "x-ms-version",
         type: {
@@ -30999,14 +30907,15 @@ const logger = logger$1.createClientLogger("storage-blob");
 
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-const SDK_VERSION = "12.11.0";
-const SERVICE_VERSION = "2021-08-06";
+const SDK_VERSION = "12.12.0";
+const SERVICE_VERSION = "2021-10-04";
 const BLOCK_BLOB_MAX_UPLOAD_BLOB_BYTES = 256 * 1024 * 1024; // 256MB
 const BLOCK_BLOB_MAX_STAGE_BLOCK_BYTES = 4000 * 1024 * 1024; // 4000MB
 const BLOCK_BLOB_MAX_BLOCKS = 50000;
 const DEFAULT_BLOCK_BUFFER_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
 const DEFAULT_BLOB_DOWNLOAD_BLOCK_BYTES = 4 * 1024 * 1024; // 4MB
 const DEFAULT_MAX_DOWNLOAD_RETRY_REQUESTS = 5;
+const REQUEST_TIMEOUT = 100 * 1000; // In ms
 /**
  * The OAuth scope to use with Azure Storage.
  */
@@ -31194,6 +31103,30 @@ const StorageBlobLoggingAllowedQueryParameters = [
 ];
 const BlobUsesCustomerSpecifiedEncryptionMsg = "BlobUsesCustomerSpecifiedEncryption";
 const BlobDoesNotUseCustomerSpecifiedEncryption = "BlobDoesNotUseCustomerSpecifiedEncryption";
+/// List of ports used for path style addressing.
+/// Path style addressing means that storage account is put in URI's Path segment in instead of in host.
+const PathStylePorts = [
+    "10000",
+    "10001",
+    "10002",
+    "10003",
+    "10004",
+    "10100",
+    "10101",
+    "10102",
+    "10103",
+    "10104",
+    "11000",
+    "11001",
+    "11002",
+    "11003",
+    "11004",
+    "11100",
+    "11101",
+    "11102",
+    "11103",
+    "11104",
+];
 
 // Copyright (c) Microsoft Corporation.
 /**
@@ -31635,7 +31568,8 @@ function isIpEndpointStyle(parsedUrl) {
     // Case 2: localhost(:port), use broad regex to match port part.
     // Case 3: Ipv4, use broad regex which just check if host contains Ipv4.
     // For valid host please refer to https://man7.org/linux/man-pages/man7/hostname.7.html.
-    return /^.*:.*:.*$|^localhost(:[0-9]+)?$|^(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])(\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])){3}(:[0-9]+)?$/.test(host);
+    return (/^.*:.*:.*$|^localhost(:[0-9]+)?$|^(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])(\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])){3}(:[0-9]+)?$/.test(host) ||
+        (parsedUrl.getPort() !== undefined && PathStylePorts.includes(parsedUrl.getPort())));
 }
 /**
  * Convert Tags to encoded string.
@@ -32152,6 +32086,16 @@ function* ExtractPageRangeInfoItems(getPageRangesSegment) {
             isClear: true,
         };
     }
+}
+/**
+ * Escape the blobName but keep path separator ('/').
+ */
+function EscapePath(blobName) {
+    const split = blobName.split("/");
+    for (let i = 0; i < split.length; i++) {
+        split[i] = encodeURIComponent(split[i]);
+    }
+    return split.join("/");
 }
 
 // Copyright (c) Microsoft Corporation.
@@ -33111,7 +33055,7 @@ class StorageSharedKeyCredential extends Credential {
  * Changes may cause incorrect behavior and will be lost if the code is regenerated.
  */
 const packageName = "azure-storage-blob";
-const packageVersion = "12.11.0";
+const packageVersion = "12.12.0";
 class StorageClientContext extends coreHttp__namespace.ServiceClient {
     /**
      * Initializes a new instance of the StorageClientContext class.
@@ -33137,7 +33081,7 @@ class StorageClientContext extends coreHttp__namespace.ServiceClient {
         // Parameter assignments
         this.url = url;
         // Assigning values to Constant parameters
-        this.version = options.version || "2021-08-06";
+        this.version = options.version || "2021-10-04";
     }
 }
 
@@ -37025,8 +36969,10 @@ async function streamToBuffer(stream, buffer, offset, end, encoding) {
     let pos = 0; // Position in stream
     const count = end - offset; // Total amount of data needed in stream
     return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error(`The operation cannot be completed in timeout.`)), REQUEST_TIMEOUT);
         stream.on("readable", () => {
             if (pos >= count) {
+                clearTimeout(timeout);
                 resolve();
                 return;
             }
@@ -37043,12 +36989,16 @@ async function streamToBuffer(stream, buffer, offset, end, encoding) {
             pos += chunkLength;
         });
         stream.on("end", () => {
+            clearTimeout(timeout);
             if (pos < count) {
                 reject(new Error(`Stream drains before getting enough data needed. Data read: ${pos}, data need: ${count}`));
             }
             resolve();
         });
-        stream.on("error", reject);
+        stream.on("error", (msg) => {
+            clearTimeout(timeout);
+            reject(msg);
+        });
     });
 }
 /**
@@ -40645,7 +40595,7 @@ class ContainerClient extends StorageClient {
      * @returns A new BlobClient object for the given blob name.
      */
     getBlobClient(blobName) {
-        return new BlobClient(appendToURLPath(this.url, encodeURIComponent(blobName)), this.pipeline);
+        return new BlobClient(appendToURLPath(this.url, EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates an {@link AppendBlobClient}
@@ -40653,7 +40603,7 @@ class ContainerClient extends StorageClient {
      * @param blobName - An append blob name
      */
     getAppendBlobClient(blobName) {
-        return new AppendBlobClient(appendToURLPath(this.url, encodeURIComponent(blobName)), this.pipeline);
+        return new AppendBlobClient(appendToURLPath(this.url, EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates a {@link BlockBlobClient}
@@ -40671,7 +40621,7 @@ class ContainerClient extends StorageClient {
      * ```
      */
     getBlockBlobClient(blobName) {
-        return new BlockBlobClient(appendToURLPath(this.url, encodeURIComponent(blobName)), this.pipeline);
+        return new BlockBlobClient(appendToURLPath(this.url, EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates a {@link PageBlobClient}
@@ -40679,7 +40629,7 @@ class ContainerClient extends StorageClient {
      * @param blobName - A page blob name
      */
     getPageBlobClient(blobName) {
-        return new PageBlobClient(appendToURLPath(this.url, encodeURIComponent(blobName)), this.pipeline);
+        return new PageBlobClient(appendToURLPath(this.url, EscapePath(blobName)), this.pipeline);
     }
     /**
      * Returns all user-defined metadata and system properties for the specified
@@ -43015,332 +42965,8 @@ exports.newPipeline = newPipeline;
 
 /***/ }),
 
-/***/ 679:
-/***/ ((module) => {
-
-/******************************************************************************
-Copyright (c) Microsoft Corporation.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-***************************************************************************** */
-/* global global, define, System, Reflect, Promise */
-var __extends;
-var __assign;
-var __rest;
-var __decorate;
-var __param;
-var __metadata;
-var __awaiter;
-var __generator;
-var __exportStar;
-var __values;
-var __read;
-var __spread;
-var __spreadArrays;
-var __spreadArray;
-var __await;
-var __asyncGenerator;
-var __asyncDelegator;
-var __asyncValues;
-var __makeTemplateObject;
-var __importStar;
-var __importDefault;
-var __classPrivateFieldGet;
-var __classPrivateFieldSet;
-var __classPrivateFieldIn;
-var __createBinding;
-(function (factory) {
-    var root = typeof global === "object" ? global : typeof self === "object" ? self : typeof this === "object" ? this : {};
-    if (typeof define === "function" && define.amd) {
-        define("tslib", ["exports"], function (exports) { factory(createExporter(root, createExporter(exports))); });
-    }
-    else if ( true && typeof module.exports === "object") {
-        factory(createExporter(root, createExporter(module.exports)));
-    }
-    else {
-        factory(createExporter(root));
-    }
-    function createExporter(exports, previous) {
-        if (exports !== root) {
-            if (typeof Object.create === "function") {
-                Object.defineProperty(exports, "__esModule", { value: true });
-            }
-            else {
-                exports.__esModule = true;
-            }
-        }
-        return function (id, v) { return exports[id] = previous ? previous(id, v) : v; };
-    }
-})
-(function (exporter) {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-
-    __extends = function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-
-    __assign = Object.assign || function (t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
-        }
-        return t;
-    };
-
-    __rest = function (s, e) {
-        var t = {};
-        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-            t[p] = s[p];
-        if (s != null && typeof Object.getOwnPropertySymbols === "function")
-            for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-                if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                    t[p[i]] = s[p[i]];
-            }
-        return t;
-    };
-
-    __decorate = function (decorators, target, key, desc) {
-        var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-        if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-        else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-        return c > 3 && r && Object.defineProperty(target, key, r), r;
-    };
-
-    __param = function (paramIndex, decorator) {
-        return function (target, key) { decorator(target, key, paramIndex); }
-    };
-
-    __metadata = function (metadataKey, metadataValue) {
-        if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
-    };
-
-    __awaiter = function (thisArg, _arguments, P, generator) {
-        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-        return new (P || (P = Promise))(function (resolve, reject) {
-            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-            step((generator = generator.apply(thisArg, _arguments || [])).next());
-        });
-    };
-
-    __generator = function (thisArg, body) {
-        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-        function verb(n) { return function (v) { return step([n, v]); }; }
-        function step(op) {
-            if (f) throw new TypeError("Generator is already executing.");
-            while (_) try {
-                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-                if (y = 0, t) op = [op[0] & 2, t.value];
-                switch (op[0]) {
-                    case 0: case 1: t = op; break;
-                    case 4: _.label++; return { value: op[1], done: false };
-                    case 5: _.label++; y = op[1]; op = [0]; continue;
-                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                    default:
-                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                        if (t[2]) _.ops.pop();
-                        _.trys.pop(); continue;
-                }
-                op = body.call(thisArg, _);
-            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-        }
-    };
-
-    __exportStar = function(m, o) {
-        for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(o, p)) __createBinding(o, m, p);
-    };
-
-    __createBinding = Object.create ? (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        var desc = Object.getOwnPropertyDescriptor(m, k);
-        if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-            desc = { enumerable: true, get: function() { return m[k]; } };
-        }
-        Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        o[k2] = m[k];
-    });
-
-    __values = function (o) {
-        var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-        if (m) return m.call(o);
-        if (o && typeof o.length === "number") return {
-            next: function () {
-                if (o && i >= o.length) o = void 0;
-                return { value: o && o[i++], done: !o };
-            }
-        };
-        throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
-    };
-
-    __read = function (o, n) {
-        var m = typeof Symbol === "function" && o[Symbol.iterator];
-        if (!m) return o;
-        var i = m.call(o), r, ar = [], e;
-        try {
-            while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
-        }
-        catch (error) { e = { error: error }; }
-        finally {
-            try {
-                if (r && !r.done && (m = i["return"])) m.call(i);
-            }
-            finally { if (e) throw e.error; }
-        }
-        return ar;
-    };
-
-    /** @deprecated */
-    __spread = function () {
-        for (var ar = [], i = 0; i < arguments.length; i++)
-            ar = ar.concat(__read(arguments[i]));
-        return ar;
-    };
-
-    /** @deprecated */
-    __spreadArrays = function () {
-        for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-        for (var r = Array(s), k = 0, i = 0; i < il; i++)
-            for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-                r[k] = a[j];
-        return r;
-    };
-
-    __spreadArray = function (to, from, pack) {
-        if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-            if (ar || !(i in from)) {
-                if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-                ar[i] = from[i];
-            }
-        }
-        return to.concat(ar || Array.prototype.slice.call(from));
-    };
-
-    __await = function (v) {
-        return this instanceof __await ? (this.v = v, this) : new __await(v);
-    };
-
-    __asyncGenerator = function (thisArg, _arguments, generator) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var g = generator.apply(thisArg, _arguments || []), i, q = [];
-        return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
-        function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
-        function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);  }
-        function fulfill(value) { resume("next", value); }
-        function reject(value) { resume("throw", value); }
-        function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
-    };
-
-    __asyncDelegator = function (o) {
-        var i, p;
-        return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
-        function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
-    };
-
-    __asyncValues = function (o) {
-        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-        var m = o[Symbol.asyncIterator], i;
-        return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-        function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-        function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-    };
-
-    __makeTemplateObject = function (cooked, raw) {
-        if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
-        return cooked;
-    };
-
-    var __setModuleDefault = Object.create ? (function(o, v) {
-        Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-        o["default"] = v;
-    };
-
-    __importStar = function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-
-    __importDefault = function (mod) {
-        return (mod && mod.__esModule) ? mod : { "default": mod };
-    };
-
-    __classPrivateFieldGet = function (receiver, state, kind, f) {
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-        return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-
-    __classPrivateFieldSet = function (receiver, state, value, kind, f) {
-        if (kind === "m") throw new TypeError("Private method is not writable");
-        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-        return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
-    };
-
-    __classPrivateFieldIn = function (state, receiver) {
-        if (receiver === null || (typeof receiver !== "object" && typeof receiver !== "function")) throw new TypeError("Cannot use 'in' operator on non-object");
-        return typeof state === "function" ? receiver === state : state.has(receiver);
-    };
-
-    exporter("__extends", __extends);
-    exporter("__assign", __assign);
-    exporter("__rest", __rest);
-    exporter("__decorate", __decorate);
-    exporter("__param", __param);
-    exporter("__metadata", __metadata);
-    exporter("__awaiter", __awaiter);
-    exporter("__generator", __generator);
-    exporter("__exportStar", __exportStar);
-    exporter("__createBinding", __createBinding);
-    exporter("__values", __values);
-    exporter("__read", __read);
-    exporter("__spread", __spread);
-    exporter("__spreadArrays", __spreadArrays);
-    exporter("__spreadArray", __spreadArray);
-    exporter("__await", __await);
-    exporter("__asyncGenerator", __asyncGenerator);
-    exporter("__asyncDelegator", __asyncDelegator);
-    exporter("__asyncValues", __asyncValues);
-    exporter("__makeTemplateObject", __makeTemplateObject);
-    exporter("__importStar", __importStar);
-    exporter("__importDefault", __importDefault);
-    exporter("__classPrivateFieldGet", __classPrivateFieldGet);
-    exporter("__classPrivateFieldSet", __classPrivateFieldSet);
-    exporter("__classPrivateFieldIn", __classPrivateFieldIn);
-});
-
-
-/***/ }),
-
 /***/ 7171:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -43359,46 +42985,40 @@ var __createBinding;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from) {
-    for (var i = 0, il = from.length, j = to.length; i < il; i++, j++)
-        to[j] = from[i];
-    return to;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ContextAPI = void 0;
-var NoopContextManager_1 = __nccwpck_require__(4118);
-var global_utils_1 = __nccwpck_require__(5135);
-var diag_1 = __nccwpck_require__(1877);
-var API_NAME = 'context';
-var NOOP_CONTEXT_MANAGER = new NoopContextManager_1.NoopContextManager();
+const NoopContextManager_1 = __nccwpck_require__(4118);
+const global_utils_1 = __nccwpck_require__(5135);
+const diag_1 = __nccwpck_require__(1877);
+const API_NAME = 'context';
+const NOOP_CONTEXT_MANAGER = new NoopContextManager_1.NoopContextManager();
 /**
  * Singleton object which represents the entry point to the OpenTelemetry Context API
  */
-var ContextAPI = /** @class */ (function () {
+class ContextAPI {
     /** Empty private constructor prevents end users from constructing a new instance of the API */
-    function ContextAPI() {
-    }
+    constructor() { }
     /** Get the singleton instance of the Context API */
-    ContextAPI.getInstance = function () {
+    static getInstance() {
         if (!this._instance) {
             this._instance = new ContextAPI();
         }
         return this._instance;
-    };
+    }
     /**
      * Set the current context manager.
      *
      * @returns true if the context manager was successfully registered, else false
      */
-    ContextAPI.prototype.setGlobalContextManager = function (contextManager) {
-        return global_utils_1.registerGlobal(API_NAME, contextManager, diag_1.DiagAPI.instance());
-    };
+    setGlobalContextManager(contextManager) {
+        return (0, global_utils_1.registerGlobal)(API_NAME, contextManager, diag_1.DiagAPI.instance());
+    }
     /**
      * Get the currently active context
      */
-    ContextAPI.prototype.active = function () {
+    active() {
         return this._getContextManager().active();
-    };
+    }
     /**
      * Execute a function with an active context
      *
@@ -43407,33 +43027,27 @@ var ContextAPI = /** @class */ (function () {
      * @param thisArg optional receiver to be used for calling fn
      * @param args optional arguments forwarded to fn
      */
-    ContextAPI.prototype.with = function (context, fn, thisArg) {
-        var _a;
-        var args = [];
-        for (var _i = 3; _i < arguments.length; _i++) {
-            args[_i - 3] = arguments[_i];
-        }
-        return (_a = this._getContextManager()).with.apply(_a, __spreadArray([context, fn, thisArg], args));
-    };
+    with(context, fn, thisArg, ...args) {
+        return this._getContextManager().with(context, fn, thisArg, ...args);
+    }
     /**
      * Bind a context to a target function or event emitter
      *
      * @param context context to bind to the event emitter or function. Defaults to the currently active context
      * @param target function or event emitter to bind
      */
-    ContextAPI.prototype.bind = function (context, target) {
+    bind(context, target) {
         return this._getContextManager().bind(context, target);
-    };
-    ContextAPI.prototype._getContextManager = function () {
-        return global_utils_1.getGlobal(API_NAME) || NOOP_CONTEXT_MANAGER;
-    };
+    }
+    _getContextManager() {
+        return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_CONTEXT_MANAGER;
+    }
     /** Disable and remove the global context manager */
-    ContextAPI.prototype.disable = function () {
+    disable() {
         this._getContextManager().disable();
-        global_utils_1.unregisterGlobal(API_NAME, diag_1.DiagAPI.instance());
-    };
-    return ContextAPI;
-}());
+        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+}
 exports.ContextAPI = ContextAPI;
 //# sourceMappingURL=context.js.map
 
@@ -43461,62 +43075,63 @@ exports.ContextAPI = ContextAPI;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DiagAPI = void 0;
-var ComponentLogger_1 = __nccwpck_require__(7978);
-var logLevelLogger_1 = __nccwpck_require__(9639);
-var types_1 = __nccwpck_require__(8077);
-var global_utils_1 = __nccwpck_require__(5135);
-var API_NAME = 'diag';
+const ComponentLogger_1 = __nccwpck_require__(7978);
+const logLevelLogger_1 = __nccwpck_require__(9639);
+const types_1 = __nccwpck_require__(8077);
+const global_utils_1 = __nccwpck_require__(5135);
+const API_NAME = 'diag';
 /**
  * Singleton object which represents the entry point to the OpenTelemetry internal
  * diagnostic API
  */
-var DiagAPI = /** @class */ (function () {
+class DiagAPI {
     /**
      * Private internal constructor
      * @private
      */
-    function DiagAPI() {
+    constructor() {
         function _logProxy(funcName) {
-            return function () {
-                var args = [];
-                for (var _i = 0; _i < arguments.length; _i++) {
-                    args[_i] = arguments[_i];
-                }
-                var logger = global_utils_1.getGlobal('diag');
+            return function (...args) {
+                const logger = (0, global_utils_1.getGlobal)('diag');
                 // shortcut if logger not set
                 if (!logger)
                     return;
-                return logger[funcName].apply(logger, args);
+                return logger[funcName](...args);
             };
         }
         // Using self local variable for minification purposes as 'this' cannot be minified
-        var self = this;
+        const self = this;
         // DiagAPI specific functions
-        self.setLogger = function (logger, logLevel) {
-            var _a, _b;
-            if (logLevel === void 0) { logLevel = types_1.DiagLogLevel.INFO; }
+        const setLogger = (logger, optionsOrLogLevel = { logLevel: types_1.DiagLogLevel.INFO }) => {
+            var _a, _b, _c;
             if (logger === self) {
                 // There isn't much we can do here.
                 // Logging to the console might break the user application.
                 // Try to log to self. If a logger was previously registered it will receive the log.
-                var err = new Error('Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation');
+                const err = new Error('Cannot use diag as the logger for itself. Please use a DiagLogger implementation like ConsoleDiagLogger or a custom implementation');
                 self.error((_a = err.stack) !== null && _a !== void 0 ? _a : err.message);
                 return false;
             }
-            var oldLogger = global_utils_1.getGlobal('diag');
-            var newLogger = logLevelLogger_1.createLogLevelDiagLogger(logLevel, logger);
-            // There already is an logger registered. We'll let it know before overwriting it.
-            if (oldLogger) {
-                var stack = (_b = new Error().stack) !== null && _b !== void 0 ? _b : '<failed to generate stacktrace>';
-                oldLogger.warn("Current logger will be overwritten from " + stack);
-                newLogger.warn("Current logger will overwrite one already registered from " + stack);
+            if (typeof optionsOrLogLevel === 'number') {
+                optionsOrLogLevel = {
+                    logLevel: optionsOrLogLevel,
+                };
             }
-            return global_utils_1.registerGlobal('diag', newLogger, self, true);
+            const oldLogger = (0, global_utils_1.getGlobal)('diag');
+            const newLogger = (0, logLevelLogger_1.createLogLevelDiagLogger)((_b = optionsOrLogLevel.logLevel) !== null && _b !== void 0 ? _b : types_1.DiagLogLevel.INFO, logger);
+            // There already is an logger registered. We'll let it know before overwriting it.
+            if (oldLogger && !optionsOrLogLevel.suppressOverrideMessage) {
+                const stack = (_c = new Error().stack) !== null && _c !== void 0 ? _c : '<failed to generate stacktrace>';
+                oldLogger.warn(`Current logger will be overwritten from ${stack}`);
+                newLogger.warn(`Current logger will overwrite one already registered from ${stack}`);
+            }
+            return (0, global_utils_1.registerGlobal)('diag', newLogger, self, true);
         };
-        self.disable = function () {
-            global_utils_1.unregisterGlobal(API_NAME, self);
+        self.setLogger = setLogger;
+        self.disable = () => {
+            (0, global_utils_1.unregisterGlobal)(API_NAME, self);
         };
-        self.createComponentLogger = function (options) {
+        self.createComponentLogger = (options) => {
             return new ComponentLogger_1.DiagComponentLogger(options);
         };
         self.verbose = _logProxy('verbose');
@@ -43526,16 +43141,83 @@ var DiagAPI = /** @class */ (function () {
         self.error = _logProxy('error');
     }
     /** Get the singleton instance of the DiagAPI API */
-    DiagAPI.instance = function () {
+    static instance() {
         if (!this._instance) {
             this._instance = new DiagAPI();
         }
         return this._instance;
-    };
-    return DiagAPI;
-}());
+    }
+}
 exports.DiagAPI = DiagAPI;
 //# sourceMappingURL=diag.js.map
+
+/***/ }),
+
+/***/ 7696:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MetricsAPI = void 0;
+const NoopMeterProvider_1 = __nccwpck_require__(2647);
+const global_utils_1 = __nccwpck_require__(5135);
+const diag_1 = __nccwpck_require__(1877);
+const API_NAME = 'metrics';
+/**
+ * Singleton object which represents the entry point to the OpenTelemetry Metrics API
+ */
+class MetricsAPI {
+    /** Empty private constructor prevents end users from constructing a new instance of the API */
+    constructor() { }
+    /** Get the singleton instance of the Metrics API */
+    static getInstance() {
+        if (!this._instance) {
+            this._instance = new MetricsAPI();
+        }
+        return this._instance;
+    }
+    /**
+     * Set the current global meter provider.
+     * Returns true if the meter provider was successfully registered, else false.
+     */
+    setGlobalMeterProvider(provider) {
+        return (0, global_utils_1.registerGlobal)(API_NAME, provider, diag_1.DiagAPI.instance());
+    }
+    /**
+     * Returns the global meter provider.
+     */
+    getMeterProvider() {
+        return (0, global_utils_1.getGlobal)(API_NAME) || NoopMeterProvider_1.NOOP_METER_PROVIDER;
+    }
+    /**
+     * Returns a meter from the global meter provider.
+     */
+    getMeter(name, version, options) {
+        return this.getMeterProvider().getMeter(name, version, options);
+    }
+    /** Remove the global meter provider */
+    disable() {
+        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+}
+exports.MetricsAPI = MetricsAPI;
+//# sourceMappingURL=metrics.js.map
 
 /***/ }),
 
@@ -43561,40 +43243,40 @@ exports.DiagAPI = DiagAPI;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PropagationAPI = void 0;
-var global_utils_1 = __nccwpck_require__(5135);
-var NoopTextMapPropagator_1 = __nccwpck_require__(2368);
-var TextMapPropagator_1 = __nccwpck_require__(865);
-var context_helpers_1 = __nccwpck_require__(7682);
-var utils_1 = __nccwpck_require__(8136);
-var diag_1 = __nccwpck_require__(1877);
-var API_NAME = 'propagation';
-var NOOP_TEXT_MAP_PROPAGATOR = new NoopTextMapPropagator_1.NoopTextMapPropagator();
+const global_utils_1 = __nccwpck_require__(5135);
+const NoopTextMapPropagator_1 = __nccwpck_require__(2368);
+const TextMapPropagator_1 = __nccwpck_require__(865);
+const context_helpers_1 = __nccwpck_require__(7682);
+const utils_1 = __nccwpck_require__(8136);
+const diag_1 = __nccwpck_require__(1877);
+const API_NAME = 'propagation';
+const NOOP_TEXT_MAP_PROPAGATOR = new NoopTextMapPropagator_1.NoopTextMapPropagator();
 /**
  * Singleton object which represents the entry point to the OpenTelemetry Propagation API
  */
-var PropagationAPI = /** @class */ (function () {
+class PropagationAPI {
     /** Empty private constructor prevents end users from constructing a new instance of the API */
-    function PropagationAPI() {
+    constructor() {
         this.createBaggage = utils_1.createBaggage;
         this.getBaggage = context_helpers_1.getBaggage;
         this.setBaggage = context_helpers_1.setBaggage;
         this.deleteBaggage = context_helpers_1.deleteBaggage;
     }
     /** Get the singleton instance of the Propagator API */
-    PropagationAPI.getInstance = function () {
+    static getInstance() {
         if (!this._instance) {
             this._instance = new PropagationAPI();
         }
         return this._instance;
-    };
+    }
     /**
      * Set the current propagator.
      *
      * @returns true if the propagator was successfully registered, else false
      */
-    PropagationAPI.prototype.setGlobalPropagator = function (propagator) {
-        return global_utils_1.registerGlobal(API_NAME, propagator, diag_1.DiagAPI.instance());
-    };
+    setGlobalPropagator(propagator) {
+        return (0, global_utils_1.registerGlobal)(API_NAME, propagator, diag_1.DiagAPI.instance());
+    }
     /**
      * Inject context into a carrier to be propagated inter-process
      *
@@ -43602,10 +43284,9 @@ var PropagationAPI = /** @class */ (function () {
      * @param carrier carrier to inject context into
      * @param setter Function used to set values on the carrier
      */
-    PropagationAPI.prototype.inject = function (context, carrier, setter) {
-        if (setter === void 0) { setter = TextMapPropagator_1.defaultTextMapSetter; }
+    inject(context, carrier, setter = TextMapPropagator_1.defaultTextMapSetter) {
         return this._getGlobalPropagator().inject(context, carrier, setter);
-    };
+    }
     /**
      * Extract context from a carrier
      *
@@ -43613,25 +43294,23 @@ var PropagationAPI = /** @class */ (function () {
      * @param carrier Carrier to extract context from
      * @param getter Function used to extract keys from a carrier
      */
-    PropagationAPI.prototype.extract = function (context, carrier, getter) {
-        if (getter === void 0) { getter = TextMapPropagator_1.defaultTextMapGetter; }
+    extract(context, carrier, getter = TextMapPropagator_1.defaultTextMapGetter) {
         return this._getGlobalPropagator().extract(context, carrier, getter);
-    };
+    }
     /**
      * Return a list of all fields which may be used by the propagator.
      */
-    PropagationAPI.prototype.fields = function () {
+    fields() {
         return this._getGlobalPropagator().fields();
-    };
+    }
     /** Remove the global propagator */
-    PropagationAPI.prototype.disable = function () {
-        global_utils_1.unregisterGlobal(API_NAME, diag_1.DiagAPI.instance());
-    };
-    PropagationAPI.prototype._getGlobalPropagator = function () {
-        return global_utils_1.getGlobal(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
-    };
-    return PropagationAPI;
-}());
+    disable() {
+        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
+    }
+    _getGlobalPropagator() {
+        return (0, global_utils_1.getGlobal)(API_NAME) || NOOP_TEXT_MAP_PROPAGATOR;
+    }
+}
 exports.PropagationAPI = PropagationAPI;
 //# sourceMappingURL=propagation.js.map
 
@@ -43659,65 +43338,65 @@ exports.PropagationAPI = PropagationAPI;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TraceAPI = void 0;
-var global_utils_1 = __nccwpck_require__(5135);
-var ProxyTracerProvider_1 = __nccwpck_require__(2285);
-var spancontext_utils_1 = __nccwpck_require__(9745);
-var context_utils_1 = __nccwpck_require__(3326);
-var diag_1 = __nccwpck_require__(1877);
-var API_NAME = 'trace';
+const global_utils_1 = __nccwpck_require__(5135);
+const ProxyTracerProvider_1 = __nccwpck_require__(2285);
+const spancontext_utils_1 = __nccwpck_require__(9745);
+const context_utils_1 = __nccwpck_require__(3326);
+const diag_1 = __nccwpck_require__(1877);
+const API_NAME = 'trace';
 /**
  * Singleton object which represents the entry point to the OpenTelemetry Tracing API
  */
-var TraceAPI = /** @class */ (function () {
+class TraceAPI {
     /** Empty private constructor prevents end users from constructing a new instance of the API */
-    function TraceAPI() {
+    constructor() {
         this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider();
         this.wrapSpanContext = spancontext_utils_1.wrapSpanContext;
         this.isSpanContextValid = spancontext_utils_1.isSpanContextValid;
         this.deleteSpan = context_utils_1.deleteSpan;
         this.getSpan = context_utils_1.getSpan;
+        this.getActiveSpan = context_utils_1.getActiveSpan;
         this.getSpanContext = context_utils_1.getSpanContext;
         this.setSpan = context_utils_1.setSpan;
         this.setSpanContext = context_utils_1.setSpanContext;
     }
     /** Get the singleton instance of the Trace API */
-    TraceAPI.getInstance = function () {
+    static getInstance() {
         if (!this._instance) {
             this._instance = new TraceAPI();
         }
         return this._instance;
-    };
+    }
     /**
      * Set the current global tracer.
      *
      * @returns true if the tracer provider was successfully registered, else false
      */
-    TraceAPI.prototype.setGlobalTracerProvider = function (provider) {
-        var success = global_utils_1.registerGlobal(API_NAME, this._proxyTracerProvider, diag_1.DiagAPI.instance());
+    setGlobalTracerProvider(provider) {
+        const success = (0, global_utils_1.registerGlobal)(API_NAME, this._proxyTracerProvider, diag_1.DiagAPI.instance());
         if (success) {
             this._proxyTracerProvider.setDelegate(provider);
         }
         return success;
-    };
+    }
     /**
      * Returns the global tracer provider.
      */
-    TraceAPI.prototype.getTracerProvider = function () {
-        return global_utils_1.getGlobal(API_NAME) || this._proxyTracerProvider;
-    };
+    getTracerProvider() {
+        return (0, global_utils_1.getGlobal)(API_NAME) || this._proxyTracerProvider;
+    }
     /**
      * Returns a tracer from the global tracer provider.
      */
-    TraceAPI.prototype.getTracer = function (name, version) {
+    getTracer(name, version) {
         return this.getTracerProvider().getTracer(name, version);
-    };
+    }
     /** Remove the global tracer provider */
-    TraceAPI.prototype.disable = function () {
-        global_utils_1.unregisterGlobal(API_NAME, diag_1.DiagAPI.instance());
+    disable() {
+        (0, global_utils_1.unregisterGlobal)(API_NAME, diag_1.DiagAPI.instance());
         this._proxyTracerProvider = new ProxyTracerProvider_1.ProxyTracerProvider();
-    };
-    return TraceAPI;
-}());
+    }
+}
 exports.TraceAPI = TraceAPI;
 //# sourceMappingURL=trace.js.map
 
@@ -43745,11 +43424,11 @@ exports.TraceAPI = TraceAPI;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.deleteBaggage = exports.setBaggage = exports.getBaggage = void 0;
-var context_1 = __nccwpck_require__(8242);
+const context_1 = __nccwpck_require__(8242);
 /**
  * Baggage key
  */
-var BAGGAGE_KEY = context_1.createContextKey('OpenTelemetry Baggage Key');
+const BAGGAGE_KEY = (0, context_1.createContextKey)('OpenTelemetry Baggage Key');
 /**
  * Retrieve the current baggage from the given context
  *
@@ -43805,50 +43484,41 @@ exports.deleteBaggage = deleteBaggage;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BaggageImpl = void 0;
-var BaggageImpl = /** @class */ (function () {
-    function BaggageImpl(entries) {
+class BaggageImpl {
+    constructor(entries) {
         this._entries = entries ? new Map(entries) : new Map();
     }
-    BaggageImpl.prototype.getEntry = function (key) {
-        var entry = this._entries.get(key);
+    getEntry(key) {
+        const entry = this._entries.get(key);
         if (!entry) {
             return undefined;
         }
         return Object.assign({}, entry);
-    };
-    BaggageImpl.prototype.getAllEntries = function () {
-        return Array.from(this._entries.entries()).map(function (_a) {
-            var k = _a[0], v = _a[1];
-            return [k, v];
-        });
-    };
-    BaggageImpl.prototype.setEntry = function (key, entry) {
-        var newBaggage = new BaggageImpl(this._entries);
+    }
+    getAllEntries() {
+        return Array.from(this._entries.entries()).map(([k, v]) => [k, v]);
+    }
+    setEntry(key, entry) {
+        const newBaggage = new BaggageImpl(this._entries);
         newBaggage._entries.set(key, entry);
         return newBaggage;
-    };
-    BaggageImpl.prototype.removeEntry = function (key) {
-        var newBaggage = new BaggageImpl(this._entries);
+    }
+    removeEntry(key) {
+        const newBaggage = new BaggageImpl(this._entries);
         newBaggage._entries.delete(key);
         return newBaggage;
-    };
-    BaggageImpl.prototype.removeEntries = function () {
-        var keys = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            keys[_i] = arguments[_i];
-        }
-        var newBaggage = new BaggageImpl(this._entries);
-        for (var _a = 0, keys_1 = keys; _a < keys_1.length; _a++) {
-            var key = keys_1[_a];
+    }
+    removeEntries(...keys) {
+        const newBaggage = new BaggageImpl(this._entries);
+        for (const key of keys) {
             newBaggage._entries.delete(key);
         }
         return newBaggage;
-    };
-    BaggageImpl.prototype.clear = function () {
+    }
+    clear() {
         return new BaggageImpl();
-    };
-    return BaggageImpl;
-}());
+    }
+}
 exports.BaggageImpl = BaggageImpl;
 //# sourceMappingURL=baggage-impl.js.map
 
@@ -43884,31 +43554,6 @@ exports.baggageEntryMetadataSymbol = Symbol('BaggageEntryMetadata');
 
 /***/ }),
 
-/***/ 1508:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=types.js.map
-
-/***/ }),
-
 /***/ 8136:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -43931,17 +43576,16 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.baggageEntryMetadataFromString = exports.createBaggage = void 0;
-var diag_1 = __nccwpck_require__(1877);
-var baggage_impl_1 = __nccwpck_require__(4811);
-var symbol_1 = __nccwpck_require__(3542);
-var diag = diag_1.DiagAPI.instance();
+const diag_1 = __nccwpck_require__(1877);
+const baggage_impl_1 = __nccwpck_require__(4811);
+const symbol_1 = __nccwpck_require__(3542);
+const diag = diag_1.DiagAPI.instance();
 /**
  * Create a new Baggage with optional entries
  *
  * @param entries An array of baggage entries the new baggage should contain
  */
-function createBaggage(entries) {
-    if (entries === void 0) { entries = {}; }
+function createBaggage(entries = {}) {
     return new baggage_impl_1.BaggageImpl(new Map(Object.entries(entries)));
 }
 exports.createBaggage = createBaggage;
@@ -43953,12 +43597,12 @@ exports.createBaggage = createBaggage;
  */
 function baggageEntryMetadataFromString(str) {
     if (typeof str !== 'string') {
-        diag.error("Cannot create baggage metadata from unknown type: " + typeof str);
+        diag.error(`Cannot create baggage metadata from unknown type: ${typeof str}`);
         str = '';
     }
     return {
         __TYPE__: symbol_1.baggageEntryMetadataSymbol,
-        toString: function () {
+        toString() {
             return str;
         },
     };
@@ -43968,8 +43612,8 @@ exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
 
 /***/ }),
 
-/***/ 1109:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ 7393:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -43989,47 +43633,18 @@ exports.baggageEntryMetadataFromString = baggageEntryMetadataFromString;
  * limitations under the License.
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=Attributes.js.map
-
-/***/ }),
-
-/***/ 4447:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=Exception.js.map
-
-/***/ }),
-
-/***/ 2358:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=Time.js.map
+exports.context = void 0;
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const context_1 = __nccwpck_require__(7171);
+/** Entrypoint for context API */
+exports.context = context_1.ContextAPI.getInstance();
+//# sourceMappingURL=context-api.js.map
 
 /***/ }),
 
 /***/ 4118:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -44048,38 +43663,26 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from) {
-    for (var i = 0, il = from.length, j = to.length; i < il; i++, j++)
-        to[j] = from[i];
-    return to;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NoopContextManager = void 0;
-var context_1 = __nccwpck_require__(8242);
-var NoopContextManager = /** @class */ (function () {
-    function NoopContextManager() {
-    }
-    NoopContextManager.prototype.active = function () {
+const context_1 = __nccwpck_require__(8242);
+class NoopContextManager {
+    active() {
         return context_1.ROOT_CONTEXT;
-    };
-    NoopContextManager.prototype.with = function (_context, fn, thisArg) {
-        var args = [];
-        for (var _i = 3; _i < arguments.length; _i++) {
-            args[_i - 3] = arguments[_i];
-        }
-        return fn.call.apply(fn, __spreadArray([thisArg], args));
-    };
-    NoopContextManager.prototype.bind = function (_context, target) {
+    }
+    with(_context, fn, thisArg, ...args) {
+        return fn.call(thisArg, ...args);
+    }
+    bind(_context, target) {
         return target;
-    };
-    NoopContextManager.prototype.enable = function () {
+    }
+    enable() {
         return this;
-    };
-    NoopContextManager.prototype.disable = function () {
+    }
+    disable() {
         return this;
-    };
-    return NoopContextManager;
-}());
+    }
+}
 exports.NoopContextManager = NoopContextManager;
 //# sourceMappingURL=NoopContextManager.js.map
 
@@ -44118,38 +43721,37 @@ function createContextKey(description) {
     return Symbol.for(description);
 }
 exports.createContextKey = createContextKey;
-var BaseContext = /** @class */ (function () {
+class BaseContext {
     /**
      * Construct a new context which inherits values from an optional parent context.
      *
      * @param parentContext a context from which to inherit values
      */
-    function BaseContext(parentContext) {
+    constructor(parentContext) {
         // for minification
-        var self = this;
+        const self = this;
         self._currentContext = parentContext ? new Map(parentContext) : new Map();
-        self.getValue = function (key) { return self._currentContext.get(key); };
-        self.setValue = function (key, value) {
-            var context = new BaseContext(self._currentContext);
+        self.getValue = (key) => self._currentContext.get(key);
+        self.setValue = (key, value) => {
+            const context = new BaseContext(self._currentContext);
             context._currentContext.set(key, value);
             return context;
         };
-        self.deleteValue = function (key) {
-            var context = new BaseContext(self._currentContext);
+        self.deleteValue = (key) => {
+            const context = new BaseContext(self._currentContext);
             context._currentContext.delete(key);
             return context;
         };
     }
-    return BaseContext;
-}());
+}
 /** The root context is used as the default parent context when there is no active context */
 exports.ROOT_CONTEXT = new BaseContext();
 //# sourceMappingURL=context.js.map
 
 /***/ }),
 
-/***/ 6504:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ 9721:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -44169,7 +43771,18 @@ exports.ROOT_CONTEXT = new BaseContext();
  * limitations under the License.
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=types.js.map
+exports.diag = void 0;
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const diag_1 = __nccwpck_require__(1877);
+/**
+ * Entrypoint for Diag API.
+ * Defines Diagnostic handler used for internal diagnostic logging operations.
+ * The default provides a Noop DiagLogger implementation which may be changed via the
+ * diag.setLogger(logger: DiagLogger) function.
+ */
+exports.diag = diag_1.DiagAPI.instance();
+//# sourceMappingURL=diag-api.js.map
 
 /***/ }),
 
@@ -44195,7 +43808,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DiagComponentLogger = void 0;
-var global_utils_1 = __nccwpck_require__(5135);
+const global_utils_1 = __nccwpck_require__(5135);
 /**
  * Component Logger which is meant to be used as part of any component which
  * will add automatically additional namespace in front of the log message.
@@ -44205,56 +43818,35 @@ var global_utils_1 = __nccwpck_require__(5135);
  * cLogger.debug('test');
  * // @opentelemetry/instrumentation-http test
  */
-var DiagComponentLogger = /** @class */ (function () {
-    function DiagComponentLogger(props) {
+class DiagComponentLogger {
+    constructor(props) {
         this._namespace = props.namespace || 'DiagComponentLogger';
     }
-    DiagComponentLogger.prototype.debug = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
+    debug(...args) {
         return logProxy('debug', this._namespace, args);
-    };
-    DiagComponentLogger.prototype.error = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
+    }
+    error(...args) {
         return logProxy('error', this._namespace, args);
-    };
-    DiagComponentLogger.prototype.info = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
+    }
+    info(...args) {
         return logProxy('info', this._namespace, args);
-    };
-    DiagComponentLogger.prototype.warn = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
+    }
+    warn(...args) {
         return logProxy('warn', this._namespace, args);
-    };
-    DiagComponentLogger.prototype.verbose = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
+    }
+    verbose(...args) {
         return logProxy('verbose', this._namespace, args);
-    };
-    return DiagComponentLogger;
-}());
+    }
+}
 exports.DiagComponentLogger = DiagComponentLogger;
 function logProxy(funcName, namespace, args) {
-    var logger = global_utils_1.getGlobal('diag');
+    const logger = (0, global_utils_1.getGlobal)('diag');
     // shortcut if logger not set
     if (!logger) {
         return;
     }
     args.unshift(namespace);
-    return logger[funcName].apply(logger, args);
+    return logger[funcName](...args);
 }
 //# sourceMappingURL=ComponentLogger.js.map
 
@@ -44282,7 +43874,7 @@ function logProxy(funcName, namespace, args) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DiagConsoleLogger = void 0;
-var consoleMap = [
+const consoleMap = [
     { n: 'error', c: 'error' },
     { n: 'warn', c: 'warn' },
     { n: 'info', c: 'info' },
@@ -44294,18 +43886,14 @@ var consoleMap = [
  * If you want to limit the amount of logging to a specific level or lower use the
  * {@link createLogLevelDiagLogger}
  */
-var DiagConsoleLogger = /** @class */ (function () {
-    function DiagConsoleLogger() {
+class DiagConsoleLogger {
+    constructor() {
         function _consoleFunc(funcName) {
-            return function () {
-                var args = [];
-                for (var _i = 0; _i < arguments.length; _i++) {
-                    args[_i] = arguments[_i];
-                }
+            return function (...args) {
                 if (console) {
                     // Some environments only expose the console when the F12 developer console is open
                     // eslint-disable-next-line no-console
-                    var theFunc = console[funcName];
+                    let theFunc = console[funcName];
                     if (typeof theFunc !== 'function') {
                         // Not all environments support all functions
                         // eslint-disable-next-line no-console
@@ -44318,51 +43906,13 @@ var DiagConsoleLogger = /** @class */ (function () {
                 }
             };
         }
-        for (var i = 0; i < consoleMap.length; i++) {
+        for (let i = 0; i < consoleMap.length; i++) {
             this[consoleMap[i].n] = _consoleFunc(consoleMap[i].c);
         }
     }
-    return DiagConsoleLogger;
-}());
+}
 exports.DiagConsoleLogger = DiagConsoleLogger;
 //# sourceMappingURL=consoleLogger.js.map
-
-/***/ }),
-
-/***/ 1634:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-__exportStar(__nccwpck_require__(3041), exports);
-__exportStar(__nccwpck_require__(8077), exports);
-//# sourceMappingURL=index.js.map
 
 /***/ }),
 
@@ -44388,7 +43938,7 @@ __exportStar(__nccwpck_require__(8077), exports);
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createLogLevelDiagLogger = void 0;
-var types_1 = __nccwpck_require__(8077);
+const types_1 = __nccwpck_require__(8077);
 function createLogLevelDiagLogger(maxLevel, logger) {
     if (maxLevel < types_1.DiagLogLevel.NONE) {
         maxLevel = types_1.DiagLogLevel.NONE;
@@ -44399,7 +43949,7 @@ function createLogLevelDiagLogger(maxLevel, logger) {
     // In case the logger is null or undefined
     logger = logger || {};
     function _filterFunc(funcName, theLevel) {
-        var theFunc = logger[funcName];
+        const theFunc = logger[funcName];
         if (typeof theFunc === 'function' && maxLevel >= theLevel) {
             return theFunc.bind(logger);
         }
@@ -44470,7 +44020,7 @@ var DiagLogLevel;
 /***/ }),
 
 /***/ 5163:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -44489,44 +44039,42 @@ var DiagLogLevel;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.diag = exports.propagation = exports.trace = exports.context = exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = exports.isValidSpanId = exports.isValidTraceId = exports.isSpanContextValid = exports.createTraceState = exports.baggageEntryMetadataFromString = void 0;
-__exportStar(__nccwpck_require__(1508), exports);
+exports.trace = exports.propagation = exports.metrics = exports.diag = exports.context = exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = exports.isValidSpanId = exports.isValidTraceId = exports.isSpanContextValid = exports.createTraceState = exports.TraceFlags = exports.SpanStatusCode = exports.SpanKind = exports.SamplingDecision = exports.ProxyTracerProvider = exports.ProxyTracer = exports.defaultTextMapSetter = exports.defaultTextMapGetter = exports.ValueType = exports.createNoopMeter = exports.DiagLogLevel = exports.DiagConsoleLogger = exports.ROOT_CONTEXT = exports.createContextKey = exports.baggageEntryMetadataFromString = void 0;
 var utils_1 = __nccwpck_require__(8136);
 Object.defineProperty(exports, "baggageEntryMetadataFromString", ({ enumerable: true, get: function () { return utils_1.baggageEntryMetadataFromString; } }));
-__exportStar(__nccwpck_require__(4447), exports);
-__exportStar(__nccwpck_require__(2358), exports);
-__exportStar(__nccwpck_require__(1109), exports);
-__exportStar(__nccwpck_require__(1634), exports);
-__exportStar(__nccwpck_require__(865), exports);
-__exportStar(__nccwpck_require__(7492), exports);
-__exportStar(__nccwpck_require__(4023), exports);
-__exportStar(__nccwpck_require__(3503), exports);
-__exportStar(__nccwpck_require__(2285), exports);
-__exportStar(__nccwpck_require__(9671), exports);
-__exportStar(__nccwpck_require__(3209), exports);
-__exportStar(__nccwpck_require__(5769), exports);
-__exportStar(__nccwpck_require__(1424), exports);
-__exportStar(__nccwpck_require__(4416), exports);
-__exportStar(__nccwpck_require__(955), exports);
-__exportStar(__nccwpck_require__(8845), exports);
-__exportStar(__nccwpck_require__(6905), exports);
-__exportStar(__nccwpck_require__(8384), exports);
+// Context APIs
+var context_1 = __nccwpck_require__(8242);
+Object.defineProperty(exports, "createContextKey", ({ enumerable: true, get: function () { return context_1.createContextKey; } }));
+Object.defineProperty(exports, "ROOT_CONTEXT", ({ enumerable: true, get: function () { return context_1.ROOT_CONTEXT; } }));
+// Diag APIs
+var consoleLogger_1 = __nccwpck_require__(3041);
+Object.defineProperty(exports, "DiagConsoleLogger", ({ enumerable: true, get: function () { return consoleLogger_1.DiagConsoleLogger; } }));
+var types_1 = __nccwpck_require__(8077);
+Object.defineProperty(exports, "DiagLogLevel", ({ enumerable: true, get: function () { return types_1.DiagLogLevel; } }));
+// Metrics APIs
+var NoopMeter_1 = __nccwpck_require__(4837);
+Object.defineProperty(exports, "createNoopMeter", ({ enumerable: true, get: function () { return NoopMeter_1.createNoopMeter; } }));
+var Metric_1 = __nccwpck_require__(9999);
+Object.defineProperty(exports, "ValueType", ({ enumerable: true, get: function () { return Metric_1.ValueType; } }));
+// Propagation APIs
+var TextMapPropagator_1 = __nccwpck_require__(865);
+Object.defineProperty(exports, "defaultTextMapGetter", ({ enumerable: true, get: function () { return TextMapPropagator_1.defaultTextMapGetter; } }));
+Object.defineProperty(exports, "defaultTextMapSetter", ({ enumerable: true, get: function () { return TextMapPropagator_1.defaultTextMapSetter; } }));
+var ProxyTracer_1 = __nccwpck_require__(3503);
+Object.defineProperty(exports, "ProxyTracer", ({ enumerable: true, get: function () { return ProxyTracer_1.ProxyTracer; } }));
+var ProxyTracerProvider_1 = __nccwpck_require__(2285);
+Object.defineProperty(exports, "ProxyTracerProvider", ({ enumerable: true, get: function () { return ProxyTracerProvider_1.ProxyTracerProvider; } }));
+var SamplingResult_1 = __nccwpck_require__(3209);
+Object.defineProperty(exports, "SamplingDecision", ({ enumerable: true, get: function () { return SamplingResult_1.SamplingDecision; } }));
+var span_kind_1 = __nccwpck_require__(1424);
+Object.defineProperty(exports, "SpanKind", ({ enumerable: true, get: function () { return span_kind_1.SpanKind; } }));
+var status_1 = __nccwpck_require__(8845);
+Object.defineProperty(exports, "SpanStatusCode", ({ enumerable: true, get: function () { return status_1.SpanStatusCode; } }));
+var trace_flags_1 = __nccwpck_require__(6905);
+Object.defineProperty(exports, "TraceFlags", ({ enumerable: true, get: function () { return trace_flags_1.TraceFlags; } }));
 var utils_2 = __nccwpck_require__(2615);
 Object.defineProperty(exports, "createTraceState", ({ enumerable: true, get: function () { return utils_2.createTraceState; } }));
-__exportStar(__nccwpck_require__(891), exports);
-__exportStar(__nccwpck_require__(3168), exports);
-__exportStar(__nccwpck_require__(1823), exports);
 var spancontext_utils_1 = __nccwpck_require__(9745);
 Object.defineProperty(exports, "isSpanContextValid", ({ enumerable: true, get: function () { return spancontext_utils_1.isSpanContextValid; } }));
 Object.defineProperty(exports, "isValidTraceId", ({ enumerable: true, get: function () { return spancontext_utils_1.isValidTraceId; } }));
@@ -44535,30 +44083,25 @@ var invalid_span_constants_1 = __nccwpck_require__(1760);
 Object.defineProperty(exports, "INVALID_SPANID", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_SPANID; } }));
 Object.defineProperty(exports, "INVALID_TRACEID", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_TRACEID; } }));
 Object.defineProperty(exports, "INVALID_SPAN_CONTEXT", ({ enumerable: true, get: function () { return invalid_span_constants_1.INVALID_SPAN_CONTEXT; } }));
-__exportStar(__nccwpck_require__(8242), exports);
-__exportStar(__nccwpck_require__(6504), exports);
-var context_1 = __nccwpck_require__(7171);
-/** Entrypoint for context API */
-exports.context = context_1.ContextAPI.getInstance();
-var trace_1 = __nccwpck_require__(1539);
-/** Entrypoint for trace API */
-exports.trace = trace_1.TraceAPI.getInstance();
-var propagation_1 = __nccwpck_require__(9909);
-/** Entrypoint for propagation API */
-exports.propagation = propagation_1.PropagationAPI.getInstance();
-var diag_1 = __nccwpck_require__(1877);
-/**
- * Entrypoint for Diag API.
- * Defines Diagnostic handler used for internal diagnostic logging operations.
- * The default provides a Noop DiagLogger implementation which may be changed via the
- * diag.setLogger(logger: DiagLogger) function.
- */
-exports.diag = diag_1.DiagAPI.instance();
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const context_api_1 = __nccwpck_require__(7393);
+Object.defineProperty(exports, "context", ({ enumerable: true, get: function () { return context_api_1.context; } }));
+const diag_api_1 = __nccwpck_require__(9721);
+Object.defineProperty(exports, "diag", ({ enumerable: true, get: function () { return diag_api_1.diag; } }));
+const metrics_api_1 = __nccwpck_require__(2601);
+Object.defineProperty(exports, "metrics", ({ enumerable: true, get: function () { return metrics_api_1.metrics; } }));
+const propagation_api_1 = __nccwpck_require__(7591);
+Object.defineProperty(exports, "propagation", ({ enumerable: true, get: function () { return propagation_api_1.propagation; } }));
+const trace_api_1 = __nccwpck_require__(8989);
+Object.defineProperty(exports, "trace", ({ enumerable: true, get: function () { return trace_api_1.trace; } }));
+// Default export.
 exports["default"] = {
-    trace: exports.trace,
-    context: exports.context,
-    propagation: exports.propagation,
-    diag: exports.diag,
+    context: context_api_1.context,
+    diag: diag_api_1.diag,
+    metrics: metrics_api_1.metrics,
+    propagation: propagation_api_1.propagation,
+    trace: trace_api_1.trace,
 };
 //# sourceMappingURL=index.js.map
 
@@ -44586,47 +44129,46 @@ exports["default"] = {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.unregisterGlobal = exports.getGlobal = exports.registerGlobal = void 0;
-var platform_1 = __nccwpck_require__(9957);
-var version_1 = __nccwpck_require__(8996);
-var semver_1 = __nccwpck_require__(1522);
-var major = version_1.VERSION.split('.')[0];
-var GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for("opentelemetry.js.api." + major);
-var _global = platform_1._globalThis;
-function registerGlobal(type, instance, diag, allowOverride) {
+const platform_1 = __nccwpck_require__(9957);
+const version_1 = __nccwpck_require__(8996);
+const semver_1 = __nccwpck_require__(1522);
+const major = version_1.VERSION.split('.')[0];
+const GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
+const _global = platform_1._globalThis;
+function registerGlobal(type, instance, diag, allowOverride = false) {
     var _a;
-    if (allowOverride === void 0) { allowOverride = false; }
-    var api = (_global[GLOBAL_OPENTELEMETRY_API_KEY] = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _a !== void 0 ? _a : {
+    const api = (_global[GLOBAL_OPENTELEMETRY_API_KEY] = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) !== null && _a !== void 0 ? _a : {
         version: version_1.VERSION,
     });
     if (!allowOverride && api[type]) {
         // already registered an API of this type
-        var err = new Error("@opentelemetry/api: Attempted duplicate registration of API: " + type);
+        const err = new Error(`@opentelemetry/api: Attempted duplicate registration of API: ${type}`);
         diag.error(err.stack || err.message);
         return false;
     }
     if (api.version !== version_1.VERSION) {
         // All registered APIs must be of the same version exactly
-        var err = new Error('@opentelemetry/api: All API registration versions must match');
+        const err = new Error('@opentelemetry/api: All API registration versions must match');
         diag.error(err.stack || err.message);
         return false;
     }
     api[type] = instance;
-    diag.debug("@opentelemetry/api: Registered a global for " + type + " v" + version_1.VERSION + ".");
+    diag.debug(`@opentelemetry/api: Registered a global for ${type} v${version_1.VERSION}.`);
     return true;
 }
 exports.registerGlobal = registerGlobal;
 function getGlobal(type) {
     var _a, _b;
-    var globalVersion = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _a === void 0 ? void 0 : _a.version;
-    if (!globalVersion || !semver_1.isCompatible(globalVersion)) {
+    const globalVersion = (_a = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _a === void 0 ? void 0 : _a.version;
+    if (!globalVersion || !(0, semver_1.isCompatible)(globalVersion)) {
         return;
     }
     return (_b = _global[GLOBAL_OPENTELEMETRY_API_KEY]) === null || _b === void 0 ? void 0 : _b[type];
 }
 exports.getGlobal = getGlobal;
 function unregisterGlobal(type, diag) {
-    diag.debug("@opentelemetry/api: Unregistering a global for " + type + " v" + version_1.VERSION + ".");
-    var api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
+    diag.debug(`@opentelemetry/api: Unregistering a global for ${type} v${version_1.VERSION}.`);
+    const api = _global[GLOBAL_OPENTELEMETRY_API_KEY];
     if (api) {
         delete api[type];
     }
@@ -44658,8 +44200,8 @@ exports.unregisterGlobal = unregisterGlobal;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.isCompatible = exports._makeCompatibilityCheck = void 0;
-var version_1 = __nccwpck_require__(8996);
-var re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
+const version_1 = __nccwpck_require__(8996);
+const re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
 /**
  * Create a function to test an API version to see if it is compatible with the provided ownVersion.
  *
@@ -44677,14 +44219,14 @@ var re = /^(\d+)\.(\d+)\.(\d+)(-(.+))?$/;
  * @param ownVersion version which should be checked against
  */
 function _makeCompatibilityCheck(ownVersion) {
-    var acceptedVersions = new Set([ownVersion]);
-    var rejectedVersions = new Set();
-    var myVersionMatch = ownVersion.match(re);
+    const acceptedVersions = new Set([ownVersion]);
+    const rejectedVersions = new Set();
+    const myVersionMatch = ownVersion.match(re);
     if (!myVersionMatch) {
         // we cannot guarantee compatibility so we always return noop
-        return function () { return false; };
+        return () => false;
     }
-    var ownVersionParsed = {
+    const ownVersionParsed = {
         major: +myVersionMatch[1],
         minor: +myVersionMatch[2],
         patch: +myVersionMatch[3],
@@ -44711,13 +44253,13 @@ function _makeCompatibilityCheck(ownVersion) {
         if (rejectedVersions.has(globalVersion)) {
             return false;
         }
-        var globalVersionMatch = globalVersion.match(re);
+        const globalVersionMatch = globalVersion.match(re);
         if (!globalVersionMatch) {
             // cannot parse other version
             // we cannot guarantee compatibility so we always noop
             return _reject(globalVersion);
         }
-        var globalVersionParsed = {
+        const globalVersionParsed = {
             major: +globalVersionMatch[1],
             minor: +globalVersionMatch[2],
             patch: +globalVersionMatch[3],
@@ -44762,6 +44304,230 @@ exports._makeCompatibilityCheck = _makeCompatibilityCheck;
  */
 exports.isCompatible = _makeCompatibilityCheck(version_1.VERSION);
 //# sourceMappingURL=semver.js.map
+
+/***/ }),
+
+/***/ 2601:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.metrics = void 0;
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const metrics_1 = __nccwpck_require__(7696);
+/** Entrypoint for metrics API */
+exports.metrics = metrics_1.MetricsAPI.getInstance();
+//# sourceMappingURL=metrics-api.js.map
+
+/***/ }),
+
+/***/ 9999:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ValueType = void 0;
+/** The Type of value. It describes how the data is reported. */
+var ValueType;
+(function (ValueType) {
+    ValueType[ValueType["INT"] = 0] = "INT";
+    ValueType[ValueType["DOUBLE"] = 1] = "DOUBLE";
+})(ValueType = exports.ValueType || (exports.ValueType = {}));
+//# sourceMappingURL=Metric.js.map
+
+/***/ }),
+
+/***/ 4837:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createNoopMeter = exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = exports.NOOP_OBSERVABLE_GAUGE_METRIC = exports.NOOP_OBSERVABLE_COUNTER_METRIC = exports.NOOP_UP_DOWN_COUNTER_METRIC = exports.NOOP_HISTOGRAM_METRIC = exports.NOOP_COUNTER_METRIC = exports.NOOP_METER = exports.NoopObservableUpDownCounterMetric = exports.NoopObservableGaugeMetric = exports.NoopObservableCounterMetric = exports.NoopObservableMetric = exports.NoopHistogramMetric = exports.NoopUpDownCounterMetric = exports.NoopCounterMetric = exports.NoopMetric = exports.NoopMeter = void 0;
+/**
+ * NoopMeter is a noop implementation of the {@link Meter} interface. It reuses
+ * constant NoopMetrics for all of its methods.
+ */
+class NoopMeter {
+    constructor() { }
+    /**
+     * @see {@link Meter.createHistogram}
+     */
+    createHistogram(_name, _options) {
+        return exports.NOOP_HISTOGRAM_METRIC;
+    }
+    /**
+     * @see {@link Meter.createCounter}
+     */
+    createCounter(_name, _options) {
+        return exports.NOOP_COUNTER_METRIC;
+    }
+    /**
+     * @see {@link Meter.createUpDownCounter}
+     */
+    createUpDownCounter(_name, _options) {
+        return exports.NOOP_UP_DOWN_COUNTER_METRIC;
+    }
+    /**
+     * @see {@link Meter.createObservableGauge}
+     */
+    createObservableGauge(_name, _options) {
+        return exports.NOOP_OBSERVABLE_GAUGE_METRIC;
+    }
+    /**
+     * @see {@link Meter.createObservableCounter}
+     */
+    createObservableCounter(_name, _options) {
+        return exports.NOOP_OBSERVABLE_COUNTER_METRIC;
+    }
+    /**
+     * @see {@link Meter.createObservableUpDownCounter}
+     */
+    createObservableUpDownCounter(_name, _options) {
+        return exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC;
+    }
+    /**
+     * @see {@link Meter.addBatchObservableCallback}
+     */
+    addBatchObservableCallback(_callback, _observables) { }
+    /**
+     * @see {@link Meter.removeBatchObservableCallback}
+     */
+    removeBatchObservableCallback(_callback) { }
+}
+exports.NoopMeter = NoopMeter;
+class NoopMetric {
+}
+exports.NoopMetric = NoopMetric;
+class NoopCounterMetric extends NoopMetric {
+    add(_value, _attributes) { }
+}
+exports.NoopCounterMetric = NoopCounterMetric;
+class NoopUpDownCounterMetric extends NoopMetric {
+    add(_value, _attributes) { }
+}
+exports.NoopUpDownCounterMetric = NoopUpDownCounterMetric;
+class NoopHistogramMetric extends NoopMetric {
+    record(_value, _attributes) { }
+}
+exports.NoopHistogramMetric = NoopHistogramMetric;
+class NoopObservableMetric {
+    addCallback(_callback) { }
+    removeCallback(_callback) { }
+}
+exports.NoopObservableMetric = NoopObservableMetric;
+class NoopObservableCounterMetric extends NoopObservableMetric {
+}
+exports.NoopObservableCounterMetric = NoopObservableCounterMetric;
+class NoopObservableGaugeMetric extends NoopObservableMetric {
+}
+exports.NoopObservableGaugeMetric = NoopObservableGaugeMetric;
+class NoopObservableUpDownCounterMetric extends NoopObservableMetric {
+}
+exports.NoopObservableUpDownCounterMetric = NoopObservableUpDownCounterMetric;
+exports.NOOP_METER = new NoopMeter();
+// Synchronous instruments
+exports.NOOP_COUNTER_METRIC = new NoopCounterMetric();
+exports.NOOP_HISTOGRAM_METRIC = new NoopHistogramMetric();
+exports.NOOP_UP_DOWN_COUNTER_METRIC = new NoopUpDownCounterMetric();
+// Asynchronous instruments
+exports.NOOP_OBSERVABLE_COUNTER_METRIC = new NoopObservableCounterMetric();
+exports.NOOP_OBSERVABLE_GAUGE_METRIC = new NoopObservableGaugeMetric();
+exports.NOOP_OBSERVABLE_UP_DOWN_COUNTER_METRIC = new NoopObservableUpDownCounterMetric();
+/**
+ * Create a no-op Meter
+ */
+function createNoopMeter() {
+    return exports.NOOP_METER;
+}
+exports.createNoopMeter = createNoopMeter;
+//# sourceMappingURL=NoopMeter.js.map
+
+/***/ }),
+
+/***/ 2647:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NOOP_METER_PROVIDER = exports.NoopMeterProvider = void 0;
+const NoopMeter_1 = __nccwpck_require__(4837);
+/**
+ * An implementation of the {@link MeterProvider} which returns an impotent Meter
+ * for all calls to `getMeter`
+ */
+class NoopMeterProvider {
+    getMeter(_name, _version, _options) {
+        return NoopMeter_1.NOOP_METER;
+    }
+}
+exports.NoopMeterProvider = NoopMeterProvider;
+exports.NOOP_METER_PROVIDER = new NoopMeterProvider();
+//# sourceMappingURL=NoopMeterProvider.js.map
 
 /***/ }),
 
@@ -44866,6 +44632,37 @@ __exportStar(__nccwpck_require__(9406), exports);
 
 /***/ }),
 
+/***/ 7591:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.propagation = void 0;
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const propagation_1 = __nccwpck_require__(9909);
+/** Entrypoint for propagation API */
+exports.propagation = propagation_1.PropagationAPI.getInstance();
+//# sourceMappingURL=propagation-api.js.map
+
+/***/ }),
+
 /***/ 2368:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -44891,20 +44688,17 @@ exports.NoopTextMapPropagator = void 0;
 /**
  * No-op implementations of {@link TextMapPropagator}.
  */
-var NoopTextMapPropagator = /** @class */ (function () {
-    function NoopTextMapPropagator() {
-    }
+class NoopTextMapPropagator {
     /** Noop inject function does nothing */
-    NoopTextMapPropagator.prototype.inject = function (_context, _carrier) { };
+    inject(_context, _carrier) { }
     /** Noop extract function does nothing and returns the input context */
-    NoopTextMapPropagator.prototype.extract = function (context, _carrier) {
+    extract(context, _carrier) {
         return context;
-    };
-    NoopTextMapPropagator.prototype.fields = function () {
+    }
+    fields() {
         return [];
-    };
-    return NoopTextMapPropagator;
-}());
+    }
+}
 exports.NoopTextMapPropagator = NoopTextMapPropagator;
 //# sourceMappingURL=NoopTextMapPropagator.js.map
 
@@ -44933,13 +44727,13 @@ exports.NoopTextMapPropagator = NoopTextMapPropagator;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.defaultTextMapSetter = exports.defaultTextMapGetter = void 0;
 exports.defaultTextMapGetter = {
-    get: function (carrier, key) {
+    get(carrier, key) {
         if (carrier == null) {
             return undefined;
         }
         return carrier[key];
     },
-    keys: function (carrier) {
+    keys(carrier) {
         if (carrier == null) {
             return [];
         }
@@ -44947,7 +44741,7 @@ exports.defaultTextMapGetter = {
     },
 };
 exports.defaultTextMapSetter = {
-    set: function (carrier, key, value) {
+    set(carrier, key, value) {
         if (carrier == null) {
             return;
         }
@@ -44955,6 +44749,37 @@ exports.defaultTextMapSetter = {
     },
 };
 //# sourceMappingURL=TextMapPropagator.js.map
+
+/***/ }),
+
+/***/ 8989:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/*
+ * Copyright The OpenTelemetry Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.trace = void 0;
+// Split module-level variable definition into separate files to allow
+// tree-shaking on each api instance.
+const trace_1 = __nccwpck_require__(1539);
+/** Entrypoint for trace API */
+exports.trace = trace_1.TraceAPI.getInstance();
+//# sourceMappingURL=trace-api.js.map
 
 /***/ }),
 
@@ -44980,51 +44805,49 @@ exports.defaultTextMapSetter = {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NonRecordingSpan = void 0;
-var invalid_span_constants_1 = __nccwpck_require__(1760);
+const invalid_span_constants_1 = __nccwpck_require__(1760);
 /**
  * The NonRecordingSpan is the default {@link Span} that is used when no Span
  * implementation is available. All operations are no-op including context
  * propagation.
  */
-var NonRecordingSpan = /** @class */ (function () {
-    function NonRecordingSpan(_spanContext) {
-        if (_spanContext === void 0) { _spanContext = invalid_span_constants_1.INVALID_SPAN_CONTEXT; }
+class NonRecordingSpan {
+    constructor(_spanContext = invalid_span_constants_1.INVALID_SPAN_CONTEXT) {
         this._spanContext = _spanContext;
     }
     // Returns a SpanContext.
-    NonRecordingSpan.prototype.spanContext = function () {
+    spanContext() {
         return this._spanContext;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.setAttribute = function (_key, _value) {
+    setAttribute(_key, _value) {
         return this;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.setAttributes = function (_attributes) {
+    setAttributes(_attributes) {
         return this;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.addEvent = function (_name, _attributes) {
+    addEvent(_name, _attributes) {
         return this;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.setStatus = function (_status) {
+    setStatus(_status) {
         return this;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.updateName = function (_name) {
+    updateName(_name) {
         return this;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.end = function (_endTime) { };
+    end(_endTime) { }
     // isRecording always returns false for NonRecordingSpan.
-    NonRecordingSpan.prototype.isRecording = function () {
+    isRecording() {
         return false;
-    };
+    }
     // By default does nothing
-    NonRecordingSpan.prototype.recordException = function (_exception, _time) { };
-    return NonRecordingSpan;
-}());
+    recordException(_exception, _time) { }
+}
 exports.NonRecordingSpan = NonRecordingSpan;
 //# sourceMappingURL=NonRecordingSpan.js.map
 
@@ -45052,36 +44875,34 @@ exports.NonRecordingSpan = NonRecordingSpan;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NoopTracer = void 0;
-var context_1 = __nccwpck_require__(7171);
-var context_utils_1 = __nccwpck_require__(3326);
-var NonRecordingSpan_1 = __nccwpck_require__(1462);
-var spancontext_utils_1 = __nccwpck_require__(9745);
-var context = context_1.ContextAPI.getInstance();
+const context_1 = __nccwpck_require__(7171);
+const context_utils_1 = __nccwpck_require__(3326);
+const NonRecordingSpan_1 = __nccwpck_require__(1462);
+const spancontext_utils_1 = __nccwpck_require__(9745);
+const contextApi = context_1.ContextAPI.getInstance();
 /**
  * No-op implementations of {@link Tracer}.
  */
-var NoopTracer = /** @class */ (function () {
-    function NoopTracer() {
-    }
+class NoopTracer {
     // startSpan starts a noop span.
-    NoopTracer.prototype.startSpan = function (name, options, context) {
-        var root = Boolean(options === null || options === void 0 ? void 0 : options.root);
+    startSpan(name, options, context) {
+        const root = Boolean(options === null || options === void 0 ? void 0 : options.root);
         if (root) {
             return new NonRecordingSpan_1.NonRecordingSpan();
         }
-        var parentFromContext = context && context_utils_1.getSpanContext(context);
+        const parentFromContext = context && (0, context_utils_1.getSpanContext)(context);
         if (isSpanContext(parentFromContext) &&
-            spancontext_utils_1.isSpanContextValid(parentFromContext)) {
+            (0, spancontext_utils_1.isSpanContextValid)(parentFromContext)) {
             return new NonRecordingSpan_1.NonRecordingSpan(parentFromContext);
         }
         else {
             return new NonRecordingSpan_1.NonRecordingSpan();
         }
-    };
-    NoopTracer.prototype.startActiveSpan = function (name, arg2, arg3, arg4) {
-        var opts;
-        var ctx;
-        var fn;
+    }
+    startActiveSpan(name, arg2, arg3, arg4) {
+        let opts;
+        let ctx;
+        let fn;
         if (arguments.length < 2) {
             return;
         }
@@ -45097,13 +44918,12 @@ var NoopTracer = /** @class */ (function () {
             ctx = arg3;
             fn = arg4;
         }
-        var parentContext = ctx !== null && ctx !== void 0 ? ctx : context.active();
-        var span = this.startSpan(name, opts, parentContext);
-        var contextWithSpanSet = context_utils_1.setSpan(parentContext, span);
-        return context.with(contextWithSpanSet, fn, undefined, span);
-    };
-    return NoopTracer;
-}());
+        const parentContext = ctx !== null && ctx !== void 0 ? ctx : contextApi.active();
+        const span = this.startSpan(name, opts, parentContext);
+        const contextWithSpanSet = (0, context_utils_1.setSpan)(parentContext, span);
+        return contextApi.with(contextWithSpanSet, fn, undefined, span);
+    }
+}
 exports.NoopTracer = NoopTracer;
 function isSpanContext(spanContext) {
     return (typeof spanContext === 'object' &&
@@ -45137,21 +44957,18 @@ function isSpanContext(spanContext) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.NoopTracerProvider = void 0;
-var NoopTracer_1 = __nccwpck_require__(7606);
+const NoopTracer_1 = __nccwpck_require__(7606);
 /**
  * An implementation of the {@link TracerProvider} which returns an impotent
  * Tracer for all calls to `getTracer`.
  *
  * All operations are no-op.
  */
-var NoopTracerProvider = /** @class */ (function () {
-    function NoopTracerProvider() {
-    }
-    NoopTracerProvider.prototype.getTracer = function (_name, _version, _options) {
+class NoopTracerProvider {
+    getTracer(_name, _version, _options) {
         return new NoopTracer_1.NoopTracer();
-    };
-    return NoopTracerProvider;
-}());
+    }
+}
 exports.NoopTracerProvider = NoopTracerProvider;
 //# sourceMappingURL=NoopTracerProvider.js.map
 
@@ -45179,42 +44996,41 @@ exports.NoopTracerProvider = NoopTracerProvider;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProxyTracer = void 0;
-var NoopTracer_1 = __nccwpck_require__(7606);
-var NOOP_TRACER = new NoopTracer_1.NoopTracer();
+const NoopTracer_1 = __nccwpck_require__(7606);
+const NOOP_TRACER = new NoopTracer_1.NoopTracer();
 /**
  * Proxy tracer provided by the proxy tracer provider
  */
-var ProxyTracer = /** @class */ (function () {
-    function ProxyTracer(_provider, name, version, options) {
+class ProxyTracer {
+    constructor(_provider, name, version, options) {
         this._provider = _provider;
         this.name = name;
         this.version = version;
         this.options = options;
     }
-    ProxyTracer.prototype.startSpan = function (name, options, context) {
+    startSpan(name, options, context) {
         return this._getTracer().startSpan(name, options, context);
-    };
-    ProxyTracer.prototype.startActiveSpan = function (_name, _options, _context, _fn) {
-        var tracer = this._getTracer();
+    }
+    startActiveSpan(_name, _options, _context, _fn) {
+        const tracer = this._getTracer();
         return Reflect.apply(tracer.startActiveSpan, tracer, arguments);
-    };
+    }
     /**
      * Try to get a tracer from the proxy tracer provider.
      * If the proxy tracer provider has no delegate, return a noop tracer.
      */
-    ProxyTracer.prototype._getTracer = function () {
+    _getTracer() {
         if (this._delegate) {
             return this._delegate;
         }
-        var tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
+        const tracer = this._provider.getDelegateTracer(this.name, this.version, this.options);
         if (!tracer) {
             return NOOP_TRACER;
         }
         this._delegate = tracer;
         return this._delegate;
-    };
-    return ProxyTracer;
-}());
+    }
+}
 exports.ProxyTracer = ProxyTracer;
 //# sourceMappingURL=ProxyTracer.js.map
 
@@ -45242,9 +45058,9 @@ exports.ProxyTracer = ProxyTracer;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProxyTracerProvider = void 0;
-var ProxyTracer_1 = __nccwpck_require__(3503);
-var NoopTracerProvider_1 = __nccwpck_require__(3259);
-var NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider();
+const ProxyTracer_1 = __nccwpck_require__(3503);
+const NoopTracerProvider_1 = __nccwpck_require__(3259);
+const NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider();
 /**
  * Tracer provider which provides {@link ProxyTracer}s.
  *
@@ -45253,59 +45069,31 @@ var NOOP_TRACER_PROVIDER = new NoopTracerProvider_1.NoopTracerProvider();
  *   When a delegate is set after tracers have already been provided,
  *   all tracers already provided will use the provided delegate implementation.
  */
-var ProxyTracerProvider = /** @class */ (function () {
-    function ProxyTracerProvider() {
-    }
+class ProxyTracerProvider {
     /**
      * Get a {@link ProxyTracer}
      */
-    ProxyTracerProvider.prototype.getTracer = function (name, version, options) {
+    getTracer(name, version, options) {
         var _a;
         return ((_a = this.getDelegateTracer(name, version, options)) !== null && _a !== void 0 ? _a : new ProxyTracer_1.ProxyTracer(this, name, version, options));
-    };
-    ProxyTracerProvider.prototype.getDelegate = function () {
+    }
+    getDelegate() {
         var _a;
         return (_a = this._delegate) !== null && _a !== void 0 ? _a : NOOP_TRACER_PROVIDER;
-    };
+    }
     /**
      * Set the delegate tracer provider
      */
-    ProxyTracerProvider.prototype.setDelegate = function (delegate) {
+    setDelegate(delegate) {
         this._delegate = delegate;
-    };
-    ProxyTracerProvider.prototype.getDelegateTracer = function (name, version, options) {
+    }
+    getDelegateTracer(name, version, options) {
         var _a;
         return (_a = this._delegate) === null || _a === void 0 ? void 0 : _a.getTracer(name, version, options);
-    };
-    return ProxyTracerProvider;
-}());
+    }
+}
 exports.ProxyTracerProvider = ProxyTracerProvider;
 //# sourceMappingURL=ProxyTracerProvider.js.map
-
-/***/ }),
-
-/***/ 9671:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=Sampler.js.map
 
 /***/ }),
 
@@ -45332,6 +45120,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SamplingDecision = void 0;
 /**
+ * @deprecated use the one declared in @opentelemetry/sdk-trace-base instead.
  * A sampling decision that determines how a {@link Span} will be recorded
  * and collected.
  */
@@ -45357,56 +45146,6 @@ var SamplingDecision;
 
 /***/ }),
 
-/***/ 955:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=SpanOptions.js.map
-
-/***/ }),
-
-/***/ 7492:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=attributes.js.map
-
-/***/ }),
-
 /***/ 3326:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -45428,13 +45167,14 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
  * limitations under the License.
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getSpanContext = exports.setSpanContext = exports.deleteSpan = exports.setSpan = exports.getSpan = void 0;
-var context_1 = __nccwpck_require__(8242);
-var NonRecordingSpan_1 = __nccwpck_require__(1462);
+exports.getSpanContext = exports.setSpanContext = exports.deleteSpan = exports.setSpan = exports.getActiveSpan = exports.getSpan = void 0;
+const context_1 = __nccwpck_require__(8242);
+const NonRecordingSpan_1 = __nccwpck_require__(1462);
+const context_2 = __nccwpck_require__(7171);
 /**
  * span key
  */
-var SPAN_KEY = context_1.createContextKey('OpenTelemetry Context Key SPAN');
+const SPAN_KEY = (0, context_1.createContextKey)('OpenTelemetry Context Key SPAN');
 /**
  * Return the span if one exists
  *
@@ -45444,6 +45184,13 @@ function getSpan(context) {
     return context.getValue(SPAN_KEY) || undefined;
 }
 exports.getSpan = getSpan;
+/**
+ * Gets the span from the current context, if one exists.
+ */
+function getActiveSpan() {
+    return getSpan(context_2.ContextAPI.getInstance().active());
+}
+exports.getActiveSpan = getActiveSpan;
 /**
  * Set the span on a context
  *
@@ -45510,11 +45257,11 @@ exports.getSpanContext = getSpanContext;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TraceStateImpl = void 0;
-var tracestate_validators_1 = __nccwpck_require__(4864);
-var MAX_TRACE_STATE_ITEMS = 32;
-var MAX_TRACE_STATE_LEN = 512;
-var LIST_MEMBERS_SEPARATOR = ',';
-var LIST_MEMBER_KEY_VALUE_SPLITTER = '=';
+const tracestate_validators_1 = __nccwpck_require__(4864);
+const MAX_TRACE_STATE_ITEMS = 32;
+const MAX_TRACE_STATE_LEN = 512;
+const LIST_MEMBERS_SEPARATOR = ',';
+const LIST_MEMBER_KEY_VALUE_SPLITTER = '=';
 /**
  * TraceState must be a class and not a simple object type because of the spec
  * requirement (https://www.w3.org/TR/trace-context/#tracestate-field).
@@ -45524,52 +45271,51 @@ var LIST_MEMBER_KEY_VALUE_SPLITTER = '=';
  * - The value of any key can be updated. Modified keys MUST be moved to the
  * beginning of the list.
  */
-var TraceStateImpl = /** @class */ (function () {
-    function TraceStateImpl(rawTraceState) {
+class TraceStateImpl {
+    constructor(rawTraceState) {
         this._internalState = new Map();
         if (rawTraceState)
             this._parse(rawTraceState);
     }
-    TraceStateImpl.prototype.set = function (key, value) {
+    set(key, value) {
         // TODO: Benchmark the different approaches(map vs list) and
         // use the faster one.
-        var traceState = this._clone();
+        const traceState = this._clone();
         if (traceState._internalState.has(key)) {
             traceState._internalState.delete(key);
         }
         traceState._internalState.set(key, value);
         return traceState;
-    };
-    TraceStateImpl.prototype.unset = function (key) {
-        var traceState = this._clone();
+    }
+    unset(key) {
+        const traceState = this._clone();
         traceState._internalState.delete(key);
         return traceState;
-    };
-    TraceStateImpl.prototype.get = function (key) {
+    }
+    get(key) {
         return this._internalState.get(key);
-    };
-    TraceStateImpl.prototype.serialize = function () {
-        var _this = this;
+    }
+    serialize() {
         return this._keys()
-            .reduce(function (agg, key) {
-            agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + _this.get(key));
+            .reduce((agg, key) => {
+            agg.push(key + LIST_MEMBER_KEY_VALUE_SPLITTER + this.get(key));
             return agg;
         }, [])
             .join(LIST_MEMBERS_SEPARATOR);
-    };
-    TraceStateImpl.prototype._parse = function (rawTraceState) {
+    }
+    _parse(rawTraceState) {
         if (rawTraceState.length > MAX_TRACE_STATE_LEN)
             return;
         this._internalState = rawTraceState
             .split(LIST_MEMBERS_SEPARATOR)
             .reverse() // Store in reverse so new keys (.set(...)) will be placed at the beginning
-            .reduce(function (agg, part) {
-            var listMember = part.trim(); // Optional Whitespace (OWS) handling
-            var i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
+            .reduce((agg, part) => {
+            const listMember = part.trim(); // Optional Whitespace (OWS) handling
+            const i = listMember.indexOf(LIST_MEMBER_KEY_VALUE_SPLITTER);
             if (i !== -1) {
-                var key = listMember.slice(0, i);
-                var value = listMember.slice(i + 1, part.length);
-                if (tracestate_validators_1.validateKey(key) && tracestate_validators_1.validateValue(value)) {
+                const key = listMember.slice(0, i);
+                const value = listMember.slice(i + 1, part.length);
+                if ((0, tracestate_validators_1.validateKey)(key) && (0, tracestate_validators_1.validateValue)(value)) {
                     agg.set(key, value);
                 }
                 else {
@@ -45584,17 +45330,16 @@ var TraceStateImpl = /** @class */ (function () {
                 .reverse() // Use reverse same as original tracestate parse chain
                 .slice(0, MAX_TRACE_STATE_ITEMS));
         }
-    };
-    TraceStateImpl.prototype._keys = function () {
+    }
+    _keys() {
         return Array.from(this._internalState.keys()).reverse();
-    };
-    TraceStateImpl.prototype._clone = function () {
-        var traceState = new TraceStateImpl();
+    }
+    _clone() {
+        const traceState = new TraceStateImpl();
         traceState._internalState = new Map(this._internalState);
         return traceState;
-    };
-    return TraceStateImpl;
-}());
+    }
+}
 exports.TraceStateImpl = TraceStateImpl;
 //# sourceMappingURL=tracestate-impl.js.map
 
@@ -45622,12 +45367,12 @@ exports.TraceStateImpl = TraceStateImpl;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.validateValue = exports.validateKey = void 0;
-var VALID_KEY_CHAR_RANGE = '[_0-9a-z-*/]';
-var VALID_KEY = "[a-z]" + VALID_KEY_CHAR_RANGE + "{0,255}";
-var VALID_VENDOR_KEY = "[a-z0-9]" + VALID_KEY_CHAR_RANGE + "{0,240}@[a-z]" + VALID_KEY_CHAR_RANGE + "{0,13}";
-var VALID_KEY_REGEX = new RegExp("^(?:" + VALID_KEY + "|" + VALID_VENDOR_KEY + ")$");
-var VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
-var INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
+const VALID_KEY_CHAR_RANGE = '[_0-9a-z-*/]';
+const VALID_KEY = `[a-z]${VALID_KEY_CHAR_RANGE}{0,255}`;
+const VALID_VENDOR_KEY = `[a-z0-9]${VALID_KEY_CHAR_RANGE}{0,240}@[a-z]${VALID_KEY_CHAR_RANGE}{0,13}`;
+const VALID_KEY_REGEX = new RegExp(`^(?:${VALID_KEY}|${VALID_VENDOR_KEY})$`);
+const VALID_VALUE_BASE_REGEX = /^[ -~]{0,255}[!-~]$/;
+const INVALID_VALUE_COMMA_EQUAL_REGEX = /,|=/;
 /**
  * Key is opaque string up to 256 characters printable. It MUST begin with a
  * lowercase letter, and can only contain lowercase letters a-z, digits 0-9,
@@ -45675,7 +45420,7 @@ exports.validateValue = validateValue;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createTraceState = void 0;
-var tracestate_impl_1 = __nccwpck_require__(2110);
+const tracestate_impl_1 = __nccwpck_require__(2110);
 function createTraceState(rawTraceState) {
     return new tracestate_impl_1.TraceStateImpl(rawTraceState);
 }
@@ -45706,7 +45451,7 @@ exports.createTraceState = createTraceState;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.INVALID_SPAN_CONTEXT = exports.INVALID_TRACEID = exports.INVALID_SPANID = void 0;
-var trace_flags_1 = __nccwpck_require__(6905);
+const trace_flags_1 = __nccwpck_require__(6905);
 exports.INVALID_SPANID = '0000000000000000';
 exports.INVALID_TRACEID = '00000000000000000000000000000000';
 exports.INVALID_SPAN_CONTEXT = {
@@ -45715,81 +45460,6 @@ exports.INVALID_SPAN_CONTEXT = {
     traceFlags: trace_flags_1.TraceFlags.NONE,
 };
 //# sourceMappingURL=invalid-span-constants.js.map
-
-/***/ }),
-
-/***/ 4023:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=link.js.map
-
-/***/ }),
-
-/***/ 4416:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=span.js.map
-
-/***/ }),
-
-/***/ 5769:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=span_context.js.map
 
 /***/ }),
 
@@ -45868,10 +45538,10 @@ exports.wrapSpanContext = exports.isSpanContextValid = exports.isValidSpanId = e
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-var invalid_span_constants_1 = __nccwpck_require__(1760);
-var NonRecordingSpan_1 = __nccwpck_require__(1462);
-var VALID_TRACEID_REGEX = /^([0-9a-f]{32})$/i;
-var VALID_SPANID_REGEX = /^[0-9a-f]{16}$/i;
+const invalid_span_constants_1 = __nccwpck_require__(1760);
+const NonRecordingSpan_1 = __nccwpck_require__(1462);
+const VALID_TRACEID_REGEX = /^([0-9a-f]{32})$/i;
+const VALID_SPANID_REGEX = /^[0-9a-f]{16}$/i;
 function isValidTraceId(traceId) {
     return VALID_TRACEID_REGEX.test(traceId) && traceId !== invalid_span_constants_1.INVALID_TRACEID;
 }
@@ -45965,106 +45635,6 @@ var TraceFlags;
 
 /***/ }),
 
-/***/ 8384:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=trace_state.js.map
-
-/***/ }),
-
-/***/ 3168:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=tracer.js.map
-
-/***/ }),
-
-/***/ 1823:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=tracer_options.js.map
-
-/***/ }),
-
-/***/ 891:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/*
- * Copyright The OpenTelemetry Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=tracer_provider.js.map
-
-/***/ }),
-
 /***/ 8996:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -46088,7 +45658,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
 // this is autogenerated file, see scripts/version-update.js
-exports.VERSION = '1.1.0';
+exports.VERSION = '1.3.0';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -54304,6 +53874,330 @@ module.exports.toUnicode = function(domain_name, useSTD3) {
 };
 
 module.exports.PROCESSING_OPTIONS = PROCESSING_OPTIONS;
+
+
+/***/ }),
+
+/***/ 4351:
+/***/ ((module) => {
+
+/******************************************************************************
+Copyright (c) Microsoft Corporation.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+***************************************************************************** */
+/* global global, define, System, Reflect, Promise */
+var __extends;
+var __assign;
+var __rest;
+var __decorate;
+var __param;
+var __metadata;
+var __awaiter;
+var __generator;
+var __exportStar;
+var __values;
+var __read;
+var __spread;
+var __spreadArrays;
+var __spreadArray;
+var __await;
+var __asyncGenerator;
+var __asyncDelegator;
+var __asyncValues;
+var __makeTemplateObject;
+var __importStar;
+var __importDefault;
+var __classPrivateFieldGet;
+var __classPrivateFieldSet;
+var __classPrivateFieldIn;
+var __createBinding;
+(function (factory) {
+    var root = typeof global === "object" ? global : typeof self === "object" ? self : typeof this === "object" ? this : {};
+    if (typeof define === "function" && define.amd) {
+        define("tslib", ["exports"], function (exports) { factory(createExporter(root, createExporter(exports))); });
+    }
+    else if ( true && typeof module.exports === "object") {
+        factory(createExporter(root, createExporter(module.exports)));
+    }
+    else {
+        factory(createExporter(root));
+    }
+    function createExporter(exports, previous) {
+        if (exports !== root) {
+            if (typeof Object.create === "function") {
+                Object.defineProperty(exports, "__esModule", { value: true });
+            }
+            else {
+                exports.__esModule = true;
+            }
+        }
+        return function (id, v) { return exports[id] = previous ? previous(id, v) : v; };
+    }
+})
+(function (exporter) {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
+
+    __extends = function (d, b) {
+        if (typeof b !== "function" && b !== null)
+            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+
+    __assign = Object.assign || function (t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+        }
+        return t;
+    };
+
+    __rest = function (s, e) {
+        var t = {};
+        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+            t[p] = s[p];
+        if (s != null && typeof Object.getOwnPropertySymbols === "function")
+            for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+                if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                    t[p[i]] = s[p[i]];
+            }
+        return t;
+    };
+
+    __decorate = function (decorators, target, key, desc) {
+        var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+        if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+        else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+        return c > 3 && r && Object.defineProperty(target, key, r), r;
+    };
+
+    __param = function (paramIndex, decorator) {
+        return function (target, key) { decorator(target, key, paramIndex); }
+    };
+
+    __metadata = function (metadataKey, metadataValue) {
+        if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
+    };
+
+    __awaiter = function (thisArg, _arguments, P, generator) {
+        function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+        return new (P || (P = Promise))(function (resolve, reject) {
+            function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+            function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+            function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+            step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+    };
+
+    __generator = function (thisArg, body) {
+        var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+        return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+        function verb(n) { return function (v) { return step([n, v]); }; }
+        function step(op) {
+            if (f) throw new TypeError("Generator is already executing.");
+            while (g && (g = 0, op[0] && (_ = 0)), _) try {
+                if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+                if (y = 0, t) op = [op[0] & 2, t.value];
+                switch (op[0]) {
+                    case 0: case 1: t = op; break;
+                    case 4: _.label++; return { value: op[1], done: false };
+                    case 5: _.label++; y = op[1]; op = [0]; continue;
+                    case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                    default:
+                        if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                        if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                        if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                        if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                        if (t[2]) _.ops.pop();
+                        _.trys.pop(); continue;
+                }
+                op = body.call(thisArg, _);
+            } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+            if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+        }
+    };
+
+    __exportStar = function(m, o) {
+        for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(o, p)) __createBinding(o, m, p);
+    };
+
+    __createBinding = Object.create ? (function(o, m, k, k2) {
+        if (k2 === undefined) k2 = k;
+        var desc = Object.getOwnPropertyDescriptor(m, k);
+        if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+            desc = { enumerable: true, get: function() { return m[k]; } };
+        }
+        Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+        if (k2 === undefined) k2 = k;
+        o[k2] = m[k];
+    });
+
+    __values = function (o) {
+        var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+        if (m) return m.call(o);
+        if (o && typeof o.length === "number") return {
+            next: function () {
+                if (o && i >= o.length) o = void 0;
+                return { value: o && o[i++], done: !o };
+            }
+        };
+        throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+    };
+
+    __read = function (o, n) {
+        var m = typeof Symbol === "function" && o[Symbol.iterator];
+        if (!m) return o;
+        var i = m.call(o), r, ar = [], e;
+        try {
+            while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+        }
+        catch (error) { e = { error: error }; }
+        finally {
+            try {
+                if (r && !r.done && (m = i["return"])) m.call(i);
+            }
+            finally { if (e) throw e.error; }
+        }
+        return ar;
+    };
+
+    /** @deprecated */
+    __spread = function () {
+        for (var ar = [], i = 0; i < arguments.length; i++)
+            ar = ar.concat(__read(arguments[i]));
+        return ar;
+    };
+
+    /** @deprecated */
+    __spreadArrays = function () {
+        for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+        for (var r = Array(s), k = 0, i = 0; i < il; i++)
+            for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+                r[k] = a[j];
+        return r;
+    };
+
+    __spreadArray = function (to, from, pack) {
+        if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+            if (ar || !(i in from)) {
+                if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+                ar[i] = from[i];
+            }
+        }
+        return to.concat(ar || Array.prototype.slice.call(from));
+    };
+
+    __await = function (v) {
+        return this instanceof __await ? (this.v = v, this) : new __await(v);
+    };
+
+    __asyncGenerator = function (thisArg, _arguments, generator) {
+        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+        var g = generator.apply(thisArg, _arguments || []), i, q = [];
+        return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
+        function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
+        function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
+        function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);  }
+        function fulfill(value) { resume("next", value); }
+        function reject(value) { resume("throw", value); }
+        function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
+    };
+
+    __asyncDelegator = function (o) {
+        var i, p;
+        return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
+        function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
+    };
+
+    __asyncValues = function (o) {
+        if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+        var m = o[Symbol.asyncIterator], i;
+        return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+        function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+        function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+    };
+
+    __makeTemplateObject = function (cooked, raw) {
+        if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
+        return cooked;
+    };
+
+    var __setModuleDefault = Object.create ? (function(o, v) {
+        Object.defineProperty(o, "default", { enumerable: true, value: v });
+    }) : function(o, v) {
+        o["default"] = v;
+    };
+
+    __importStar = function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+
+    __importDefault = function (mod) {
+        return (mod && mod.__esModule) ? mod : { "default": mod };
+    };
+
+    __classPrivateFieldGet = function (receiver, state, kind, f) {
+        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+        return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+    };
+
+    __classPrivateFieldSet = function (receiver, state, value, kind, f) {
+        if (kind === "m") throw new TypeError("Private method is not writable");
+        if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+        if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+        return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+    };
+
+    __classPrivateFieldIn = function (state, receiver) {
+        if (receiver === null || (typeof receiver !== "object" && typeof receiver !== "function")) throw new TypeError("Cannot use 'in' operator on non-object");
+        return typeof state === "function" ? receiver === state : state.has(receiver);
+    };
+
+    exporter("__extends", __extends);
+    exporter("__assign", __assign);
+    exporter("__rest", __rest);
+    exporter("__decorate", __decorate);
+    exporter("__param", __param);
+    exporter("__metadata", __metadata);
+    exporter("__awaiter", __awaiter);
+    exporter("__generator", __generator);
+    exporter("__exportStar", __exportStar);
+    exporter("__createBinding", __createBinding);
+    exporter("__values", __values);
+    exporter("__read", __read);
+    exporter("__spread", __spread);
+    exporter("__spreadArrays", __spreadArrays);
+    exporter("__spreadArray", __spreadArray);
+    exporter("__await", __await);
+    exporter("__asyncGenerator", __asyncGenerator);
+    exporter("__asyncDelegator", __asyncDelegator);
+    exporter("__asyncValues", __asyncValues);
+    exporter("__makeTemplateObject", __makeTemplateObject);
+    exporter("__importStar", __importStar);
+    exporter("__importDefault", __importDefault);
+    exporter("__classPrivateFieldGet", __classPrivateFieldGet);
+    exporter("__classPrivateFieldSet", __classPrivateFieldSet);
+    exporter("__classPrivateFieldIn", __classPrivateFieldIn);
+});
 
 
 /***/ }),

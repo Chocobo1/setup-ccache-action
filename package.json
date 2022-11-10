@@ -25,16 +25,16 @@
     "lint": "eslint src/*.ts"
   },
   "dependencies": {
-    "@actions/cache": "^3.0.4",
-    "@actions/core": "^1.9.1",
+    "@actions/cache": "^3.0.6",
+    "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1",
     "@actions/io": "^1.1.2"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "*",
     "@typescript-eslint/parser": "*",
-    "@vercel/ncc": "^0.34.0",
+    "@vercel/ncc": "*",
     "eslint": "*",
-    "typescript": "^4.7.4"
+    "typescript": "*"
   }
 }

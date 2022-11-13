@@ -62587,6 +62587,7 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 
 
+const foundCacheKey = "setup-ccache-action_found-cache-key";
 function getDefaultCacheKeys() {
     const env = external_process_namespaceObject.env;
     const keys = [
@@ -62825,7 +62826,7 @@ function addSymlinksToPath() {
                     const symlinks = yield getCcacheSymlinksPath();
                     core.info(`ccache symlinks path: "${symlinks}"`);
                     core.addPath(symlinks);
-                    core.info(`PATH=${process.env.PATH}`);
+                    core.info(`PATH=${external_process_namespaceObject.env.PATH}`);
                     break;
                 }
                 case 'win32':
@@ -62908,9 +62909,10 @@ function restoreCache() {
             const restoreKeys = getOverrideCacheKeyFallback();
             core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
             try {
-                const cachePath = yield cache.restoreCache(paths, primaryKey, restoreKeys);
-                core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
-                return (cachePath ? true : false);
+                const cacheKey = yield cache.restoreCache(paths, primaryKey, restoreKeys);
+                core.info(cacheKey ? `Cache found at: "${cacheKey}"` : "Cache not found...");
+                core.exportVariable(foundCacheKey, cacheKey);
+                return (cacheKey ? true : false);
             }
             catch (error) {
                 if (error instanceof Error)

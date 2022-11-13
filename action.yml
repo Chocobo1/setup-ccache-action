@@ -48,7 +48,7 @@ inputs:
     required: false
 
   remove_stale_cache:
-    description: "Whether to remove previous/stale cache entry after store cache completed.
+    description: "Whether to remove previous/stale cache entries after store cache completed.
       This requires parameter `api_token` to be present.
       This requires `actions: write` permission."
     default: "true"

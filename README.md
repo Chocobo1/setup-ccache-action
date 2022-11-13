@@ -164,7 +164,7 @@ This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
 On Windows it has primitive support for `msvc` and `msys2`.
 
 ## Github Actions Permissions
-By default, this action will remove previous/stale cache entry which would require `actions: write` permission.
+By default, this action will remove previous/stale cache entries which would require `actions: write` permission.
 If you use the following configuration, then this action doesn't need any permissions:
 ```yaml
 - name: Setup ccache

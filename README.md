@@ -162,3 +162,13 @@ For description of all options, take a look at [action.yml](action.yml).
 ## Limitations
 This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
 On Windows it has primitive support for `msvc` and `msys2`.
+
+## Github Actions Permissions
+By default, this action does not need any permissions. If your workflow doesn't need any permissions
+then you might want to specify the following for maximum security:
+```yml
+permissions: {}
+```
+References:
+* https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions
+* https://docs.github.com/en/actions/security-guides/automatic-token-authentication

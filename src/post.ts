@@ -9,13 +9,16 @@ import * as Utils from './utils';
 const MAX_UPLOAD_RETRIES = 10;
 
 async function removeStaleCache() {
+  const cacheKey = Process.env[Utils.foundCacheKey];
+  if (!cacheKey)
+    return;
+
   await Core.group("Remove stale cache", async () => {
     const token = Core.getInput("api_token");
     const octokit = Github.getOctokit(token);
 
     const owner = Process.env.GITHUB_REPOSITORY_OWNER!;
     const repo = Process.env.GITHUB_REPOSITORY!.slice(owner.length + 1);
-    const cacheKey = Process.env[Utils.foundCacheKey]!;
     const gitRef = Process.env.GITHUB_REF!;
 
     try {
@@ -26,7 +29,7 @@ async function removeStaleCache() {
         ref: gitRef
       })).data;
 
-      Core.info(`Number of stale caches: ${result["total_count"]}`);
+      Core.info(`Number of stale caches found: ${result["total_count"]}`);
 
       const staleCacheKeys = [];
       for (const cache of result["actions_caches"])

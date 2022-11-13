@@ -115,9 +115,14 @@ async function restoreCache(): Promise<boolean> {
     Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
     try {
       const cacheKey = await Cache.restoreCache(paths, primaryKey, restoreKeys);
-      Core.info(cacheKey ? `Cache found at: "${cacheKey}"` : "Cache not found...");
-      Core.exportVariable(Utils.foundCacheKey, cacheKey);
-      return (cacheKey ? true : false);
+      if (cacheKey) {
+        Core.info(`Cache found at: "${cacheKey}"`);
+        Core.exportVariable(Utils.foundCacheKey, cacheKey);
+      }
+      else {
+        Core.info("Cache not found...");
+      }
+      return cacheKey ? true : false;
     }
     catch (error) {
       if (error instanceof Error)

@@ -7,10 +7,10 @@ import * as Utils from './utils';
 
 
 const MAX_UPLOAD_RETRIES = 10;
+let storedCacheKey = "";
 
 async function removeStaleCache() {
-  const cacheKey = Process.env[Utils.foundCacheKey];
-  if (!cacheKey)
+  if (storedCacheKey.length <= 0)
     return;
 
   await Core.group("Remove stale cache", async () => {
@@ -19,26 +19,53 @@ async function removeStaleCache() {
 
     const owner = Process.env.GITHUB_REPOSITORY_OWNER!;
     const repo = Process.env.GITHUB_REPOSITORY!.slice(owner.length + 1);
-    const gitRef = Process.env.GITHUB_REF!;
 
+    let cacheList = [];
     try {
-      const result = (await octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+      const cacheKeyPrefix = storedCacheKey.slice(0, storedCacheKey.lastIndexOf('_'));
+      const result = (await octokit.request("GET /repos/{owner}/{repo}/actions/caches{?per_page,page,ref,key,sort,direction}", {
         owner: owner,
         repo: repo,
-        key: cacheKey,
-        ref: gitRef
+        key: cacheKeyPrefix,
+        sort: "created_at",
+        direction: "asc"
       })).data;
 
-      Core.info(`Number of stale caches found: ${result["total_count"]}`);
-
-      const staleCacheKeys = [];
-      for (const cache of result["actions_caches"])
-        staleCacheKeys.push(cache["key"]);
-      Core.info(`Removed stale caches: ${staleCacheKeys.join('\n')}`);
+      cacheList = result["actions_caches"];
     }
     catch (error) {
-      Core.info(`Error occurred when removing stale caches. Error: "${error}"`);
+      Core.info(`Error occurred when listing cache entries. Error: "${error}"`);
+      return;
     }
+
+    // TODO: remove type definition for `cache`. Possibly https://github.com/octokit/types.ts hasn't updated yet
+    cacheList = cacheList.filter((cache: Record<string, any>) => {
+      return (cache["key"] !== storedCacheKey);
+    });
+
+    Core.info(`Number of stale caches found: ${cacheList.length}`);
+
+    const removedKeys = [];
+    for (const cache of cacheList) {
+      const key = cache["key"];
+
+      try {
+        const result = (await octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+          owner: owner,
+          repo: repo,
+          key: key
+        })).data;
+
+        for (const entry of result["actions_caches"])
+          removedKeys.push(entry["key"]);
+      }
+      catch (error) {
+        Core.info(`Error occurred when removing stale cache. Key: "${key}". Error: "${error}"`);
+      }
+    }
+
+    if (removedKeys.length > 0)
+      Core.info(`Removed stale caches:\n${removedKeys.join('\n')}`);
   });
 }
 
@@ -58,6 +85,7 @@ async function saveCache(): Promise<boolean> {
         Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
 
         await Cache.saveCache(paths, key);
+        storedCacheKey = key;
         return true;
       }
       catch (error) {

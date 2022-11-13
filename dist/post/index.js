@@ -65771,12 +65771,14 @@ var post_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arg
 const MAX_UPLOAD_RETRIES = 10;
 function removeStaleCache() {
     return post_awaiter(this, void 0, void 0, function* () {
+        const cacheKey = external_process_namespaceObject.env[foundCacheKey];
+        if (!cacheKey)
+            return;
         yield core.group("Remove stale cache", () => post_awaiter(this, void 0, void 0, function* () {
             const token = core.getInput("api_token");
             const octokit = github.getOctokit(token);
             const owner = external_process_namespaceObject.env.GITHUB_REPOSITORY_OWNER;
             const repo = external_process_namespaceObject.env.GITHUB_REPOSITORY.slice(owner.length + 1);
-            const cacheKey = external_process_namespaceObject.env[foundCacheKey];
             const gitRef = external_process_namespaceObject.env.GITHUB_REF;
             try {
                 const result = (yield octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
@@ -65785,7 +65787,7 @@ function removeStaleCache() {
                     key: cacheKey,
                     ref: gitRef
                 })).data;
-                core.info(`Number of stale caches: ${result["total_count"]}`);
+                core.info(`Number of stale caches found: ${result["total_count"]}`);
                 const staleCacheKeys = [];
                 for (const cache of result["actions_caches"])
                     staleCacheKeys.push(cache["key"]);

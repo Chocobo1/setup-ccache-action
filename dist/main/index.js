@@ -62910,9 +62910,14 @@ function restoreCache() {
             core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
             try {
                 const cacheKey = yield cache.restoreCache(paths, primaryKey, restoreKeys);
-                core.info(cacheKey ? `Cache found at: "${cacheKey}"` : "Cache not found...");
-                core.exportVariable(foundCacheKey, cacheKey);
-                return (cacheKey ? true : false);
+                if (cacheKey) {
+                    core.info(`Cache found at: "${cacheKey}"`);
+                    core.exportVariable(foundCacheKey, cacheKey);
+                }
+                else {
+                    core.info("Cache not found...");
+                }
+                return cacheKey ? true : false;
             }
             catch (error) {
                 if (error instanceof Error)

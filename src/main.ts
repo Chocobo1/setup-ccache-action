@@ -21,7 +21,7 @@ async function addSymlinksToPath() {
         const symlinks = await Utils.getCcacheSymlinksPath();
         Core.info(`ccache symlinks path: "${symlinks}"`);
         Core.addPath(symlinks);
-        Core.info(`PATH=${process.env.PATH}`);
+        Core.info(`PATH=${Process.env.PATH}`);
         break;
       }
       case 'win32':
@@ -114,9 +114,10 @@ async function restoreCache(): Promise<boolean> {
 
     Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
     try {
-      const cachePath = await Cache.restoreCache(paths, primaryKey, restoreKeys);
-      Core.info(cachePath ? `Cache found at: "${cachePath}"` : "Cache not found...");
-      return (cachePath ? true : false);
+      const cacheKey = await Cache.restoreCache(paths, primaryKey, restoreKeys);
+      Core.info(cacheKey ? `Cache found at: "${cacheKey}"` : "Cache not found...");
+      Core.exportVariable(Utils.foundCacheKey, cacheKey);
+      return (cacheKey ? true : false);
     }
     catch (error) {
       if (error instanceof Error)

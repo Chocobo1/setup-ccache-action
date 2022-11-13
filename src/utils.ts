@@ -11,6 +11,8 @@ interface IOverrideCacheKey {
   value: string
 }
 
+export const foundCacheKey = "setup-ccache-action_found-cache-key";
+
 function getDefaultCacheKeys(): string[] {
   const env = Process.env;
   const keys = [

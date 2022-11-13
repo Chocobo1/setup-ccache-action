@@ -1,13 +1,46 @@
 import * as Cache from '@actions/cache';
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
+import * as Github from '@actions/github';
+import * as Process from 'process';
 import * as Utils from './utils';
 
 
 const MAX_UPLOAD_RETRIES = 10;
 
-async function saveCache() {
-  await Core.group("Store cache", async () => {
+async function removeStaleCache() {
+  await Core.group("Remove stale cache", async () => {
+    const token = Core.getInput("api_token");
+    const octokit = Github.getOctokit(token);
+
+    const owner = Process.env.GITHUB_REPOSITORY_OWNER!;
+    const repo = Process.env.GITHUB_REPOSITORY!.slice(owner.length + 1);
+    const cacheKey = Process.env[Utils.foundCacheKey]!;
+    const gitRef = Process.env.GITHUB_REF!;
+
+    try {
+      const result = (await octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+        owner: owner,
+        repo: repo,
+        key: cacheKey,
+        ref: gitRef
+      })).data;
+
+      Core.info(`Number of stale caches: ${result["total_count"]}`);
+
+      const staleCacheKeys = [];
+      for (const cache of result["actions_caches"])
+        staleCacheKeys.push(cache["key"]);
+      Core.info(`Removed stale caches: ${staleCacheKeys.join('\n')}`);
+    }
+    catch (error) {
+      Core.info(`Error occurred when removing stale caches. Error: "${error}"`);
+    }
+  });
+}
+
+async function saveCache(): Promise<boolean> {
+  return await Core.group("Store cache", async () => {
     Utils.removeCcacheConfig();
 
     const paths = [await Utils.getCachePath()];
@@ -22,7 +55,7 @@ async function saveCache() {
         Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
 
         await Cache.saveCache(paths, key);
-        return;
+        return true;
       }
       catch (error) {
         if (error instanceof Cache.ReserveCacheError)
@@ -33,6 +66,7 @@ async function saveCache() {
           throw error;
       }
     }
+    return false;
   });
 }
 
@@ -54,10 +88,19 @@ export default async function main(): Promise<void> {
 
     await showStats();
 
+    let isSaveCacheSuccess = false;
     if (Core.getBooleanInput("store_cache"))
-      await saveCache();
+      isSaveCacheSuccess = await saveCache();
     else
       Core.info("Skip store cache...");
+
+    if (Core.getBooleanInput("remove_stale_cache")) {
+      if (isSaveCacheSuccess)
+        await removeStaleCache();
+    }
+    else {
+      Core.info("Skip remove stale cache...");
+    }
   }
   catch (error) {
     if (error instanceof Error)

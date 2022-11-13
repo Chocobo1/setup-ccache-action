@@ -31,6 +31,11 @@ inputs:
     default: ""
     required: false
 
+  api_token:
+    description: "Token for using GitHub API"
+    default: ${{ github.token }}
+    required: false
+
   # store, restore cache
   restore_cache:
     description: "Whether to restore the cache at the start of this action"
@@ -39,6 +44,13 @@ inputs:
 
   store_cache:
     description: "Whether to store the cache at the end of job execution"
+    default: "true"
+    required: false
+
+  remove_stale_cache:
+    description: "Whether to remove previous/stale cache entry after store cache completed.
+      This requires parameter `api_token` to be present.
+      This requires `actions: write` permission."
     default: "true"
     required: false
 

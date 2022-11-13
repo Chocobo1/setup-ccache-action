@@ -164,8 +164,16 @@ This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \
 On Windows it has primitive support for `msvc` and `msys2`.
 
 ## Github Actions Permissions
-By default, this action does not need any permissions. If your workflow doesn't need any permissions
-then you might want to specify the following for maximum security:
+By default, this action will remove previous/stale cache entry which would require `actions: write` permission.
+If you had set the following, then this action don't need any permissions:
+```yaml
+- name: Setup ccache
+  uses: Chocobo1/setup-ccache-action@v1
+  with:
+    remove_stale_cache: false
+```
+If your workflow doesn't need any permissions then you might want to specify the following at
+top level for maximum security:
 ```yml
 permissions: {}
 ```

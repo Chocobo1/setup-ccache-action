@@ -38,9 +38,12 @@ async function removeStaleCache() {
       return;
     }
 
+    const getTimestamp = (str: string): number => parseInt(str.slice(str.lastIndexOf('_') + 1), 10);
+    const storedCacheTimestamp = getTimestamp(storedCacheKey);
     // TODO: remove type definition for `cache`. Possibly https://github.com/octokit/types.ts hasn't updated yet
     cacheList = cacheList.filter((cache: Record<string, any>) => {
-      return (cache["key"] !== storedCacheKey);
+      const cacheTimestamp = getTimestamp(cache["key"]);
+      return (cacheTimestamp < storedCacheTimestamp);
     });
 
     Core.info(`Number of stale caches found: ${cacheList.length}`);

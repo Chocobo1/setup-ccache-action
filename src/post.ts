@@ -13,7 +13,7 @@ async function removeStaleCache() {
   if (storedCacheKey.length <= 0)
     return;
 
-  await Core.group("Remove stale cache", async () => {
+  await Core.group("Remove stale caches", async () => {
     const token = Core.getInput("api_token");
     const octokit = Github.getOctokit(token);
 
@@ -130,7 +130,7 @@ export default async function main(): Promise<void> {
         await removeStaleCache();
     }
     else {
-      Core.info("Skip remove stale cache...");
+      Core.info("Skip remove stale caches...");
     }
   }
   catch (error) {

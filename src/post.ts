@@ -19,6 +19,7 @@ async function removeStaleCache() {
 
     const owner = Process.env.GITHUB_REPOSITORY_OWNER!;
     const repo = Process.env.GITHUB_REPOSITORY!.slice(owner.length + 1);
+    const gitRef = Process.env.GITHUB_REF!;
 
     let cacheList = [];
     try {
@@ -26,6 +27,7 @@ async function removeStaleCache() {
       const result = (await octokit.request("GET /repos/{owner}/{repo}/actions/caches{?per_page,page,ref,key,sort,direction}", {
         owner: owner,
         repo: repo,
+        ref: gitRef,
         key: cacheKeyPrefix,
         sort: "created_at",
         direction: "asc"
@@ -53,10 +55,12 @@ async function removeStaleCache() {
       const key = cache["key"];
 
       try {
+        // This will fail for Pull Requests, due to: https://github.com/actions/first-interaction/issues/10
         const result = (await octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
           owner: owner,
           repo: repo,
-          key: key
+          key: key,
+          ref: gitRef
         })).data;
 
         for (const entry of result["actions_caches"])

@@ -65769,33 +65769,54 @@ var post_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arg
 
 
 const MAX_UPLOAD_RETRIES = 10;
+let storedCacheKey = "";
 function removeStaleCache() {
     return post_awaiter(this, void 0, void 0, function* () {
-        const cacheKey = external_process_namespaceObject.env[foundCacheKey];
-        if (!cacheKey)
+        if (storedCacheKey.length <= 0)
             return;
-        yield core.group("Remove stale cache", () => post_awaiter(this, void 0, void 0, function* () {
+        yield core.group("Remove stale caches", () => post_awaiter(this, void 0, void 0, function* () {
             const token = core.getInput("api_token");
             const octokit = github.getOctokit(token);
             const owner = external_process_namespaceObject.env.GITHUB_REPOSITORY_OWNER;
             const repo = external_process_namespaceObject.env.GITHUB_REPOSITORY.slice(owner.length + 1);
-            const gitRef = external_process_namespaceObject.env.GITHUB_REF;
+            let cacheList = [];
             try {
-                const result = (yield octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+                const cacheKeyPrefix = storedCacheKey.slice(0, storedCacheKey.lastIndexOf('_'));
+                const result = (yield octokit.request("GET /repos/{owner}/{repo}/actions/caches{?per_page,page,ref,key,sort,direction}", {
                     owner: owner,
                     repo: repo,
-                    key: cacheKey,
-                    ref: gitRef
+                    key: cacheKeyPrefix,
+                    sort: "created_at",
+                    direction: "asc"
                 })).data;
-                core.info(`Number of stale caches found: ${result["total_count"]}`);
-                const staleCacheKeys = [];
-                for (const cache of result["actions_caches"])
-                    staleCacheKeys.push(cache["key"]);
-                core.info(`Removed stale caches: ${staleCacheKeys.join('\n')}`);
+                cacheList = result["actions_caches"];
             }
             catch (error) {
-                core.info(`Error occurred when removing stale caches. Error: "${error}"`);
+                core.info(`Error occurred when listing cache entries. Error: "${error}"`);
+                return;
             }
+            cacheList = cacheList.filter((cache) => {
+                return (cache["key"] !== storedCacheKey);
+            });
+            core.info(`Number of stale caches found: ${cacheList.length}`);
+            const removedKeys = [];
+            for (const cache of cacheList) {
+                const key = cache["key"];
+                try {
+                    const result = (yield octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+                        owner: owner,
+                        repo: repo,
+                        key: key
+                    })).data;
+                    for (const entry of result["actions_caches"])
+                        removedKeys.push(entry["key"]);
+                }
+                catch (error) {
+                    core.info(`Error occurred when removing stale cache. Key: "${key}". Error: "${error}"`);
+                }
+            }
+            if (removedKeys.length > 0)
+                core.info(`Removed stale caches:\n${removedKeys.join('\n')}`);
         }));
     });
 }
@@ -65809,6 +65830,7 @@ function saveCache() {
                     const key = `${getOverrideCacheKey().value}_${Date.now()}`;
                     core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
                     yield cache.saveCache(paths, key);
+                    storedCacheKey = key;
                     return true;
                 }
                 catch (error) {
@@ -65851,7 +65873,7 @@ function main() {
                     yield removeStaleCache();
             }
             else {
-                core.info("Skip remove stale cache...");
+                core.info("Skip remove stale caches...");
             }
         }
         catch (error) {

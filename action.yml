@@ -49,8 +49,9 @@ inputs:
 
   remove_stale_cache:
     description: "Whether to remove previous/stale cache entries after store cache completed.
-      This requires parameter `api_token` to be present.
-      This requires `actions: write` permission."
+      This requires parameter `api_token` to be valid.
+      This requires `actions: write` permission.
+      Note that for GitHub Pull Requests, only `actions: read` permission will be given so this feature won't work reliably there."
     default: "true"
     required: false
 

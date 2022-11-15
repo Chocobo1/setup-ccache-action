@@ -65779,12 +65779,14 @@ function removeStaleCache() {
             const octokit = github.getOctokit(token);
             const owner = external_process_namespaceObject.env.GITHUB_REPOSITORY_OWNER;
             const repo = external_process_namespaceObject.env.GITHUB_REPOSITORY.slice(owner.length + 1);
+            const gitRef = external_process_namespaceObject.env.GITHUB_REF;
             let cacheList = [];
             try {
                 const cacheKeyPrefix = storedCacheKey.slice(0, storedCacheKey.lastIndexOf('_'));
                 const result = (yield octokit.request("GET /repos/{owner}/{repo}/actions/caches{?per_page,page,ref,key,sort,direction}", {
                     owner: owner,
                     repo: repo,
+                    ref: gitRef,
                     key: cacheKeyPrefix,
                     sort: "created_at",
                     direction: "asc"
@@ -65795,8 +65797,11 @@ function removeStaleCache() {
                 core.info(`Error occurred when listing cache entries. Error: "${error}"`);
                 return;
             }
+            const getTimestamp = (str) => parseInt(str.slice(str.lastIndexOf('_') + 1), 10);
+            const storedCacheTimestamp = getTimestamp(storedCacheKey);
             cacheList = cacheList.filter((cache) => {
-                return (cache["key"] !== storedCacheKey);
+                const cacheTimestamp = getTimestamp(cache["key"]);
+                return (cacheTimestamp < storedCacheTimestamp);
             });
             core.info(`Number of stale caches found: ${cacheList.length}`);
             const removedKeys = [];
@@ -65806,7 +65811,8 @@ function removeStaleCache() {
                     const result = (yield octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
                         owner: owner,
                         repo: repo,
-                        key: key
+                        key: key,
+                        ref: gitRef
                     })).data;
                     for (const entry of result["actions_caches"])
                         removedKeys.push(entry["key"]);

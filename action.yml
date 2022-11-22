@@ -1,5 +1,5 @@
 name: "Setup ccache action"
-description: "Setup ccache on GitHub Actions"
+description: "Setup ccache easily in your workflow, with all the tuning knobs you need! "
 author: "Chocobo1 <https://github.com/Chocobo1>"
 
 inputs:

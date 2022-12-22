@@ -57,6 +57,24 @@ jobs:
           ./hello_world
 
 
+  macos-minimal:
+    name: macOS-minimal
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup ccache
+        id: setup_ccache
+        uses: ./
+
+      - name: Build test program
+        run: |
+          g++ ".github/workflows/hello_world.cpp" -o "hello_world"
+          ./hello_world
+
+
   ubuntu:
     name: Ubuntu
     runs-on: ubuntu-latest

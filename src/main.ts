@@ -37,8 +37,8 @@ async function addSymlinksToPath() {
             const execOptions = {
               "silent": true
             };
-            await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), [], execOptions);
-            const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), [], execOptions);
+            await Exec.exec(Utils.platformExecWrap(`echo "export PATH=${symlinks}:\\$PATH" >> ~/.bash_profile`), undefined, execOptions);
+            const pathOutput = await Exec.getExecOutput(Utils.platformExecWrap("echo PATH=$PATH"), undefined, execOptions);
             Core.info(`(msys) ${pathOutput.stdout.trim()}`);
             break;
           }

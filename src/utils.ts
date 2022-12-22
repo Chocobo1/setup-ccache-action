@@ -37,12 +37,12 @@ export async function getCachePath(): Promise<string> {
 
   const ccachePath = await getCcacheBinaryPath();
 
-  const getOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} --get-config cache_dir`), [], execOptions);
+  const getOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} --get-config cache_dir`), undefined, execOptions);
   if (getOutput.exitCode === 0)
     return getOutput.stdout.trim();
 
   // parse the output manually since `--get-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
-  const configOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} -p`), [], execOptions);
+  const configOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} -p`), undefined, execOptions);
   return configOutput.stdout.match(/(?<=cache_dir = ).+/)![0].trim();
 }
 
@@ -57,15 +57,15 @@ export async function getCcacheBinaryPath(): Promise<string> {
     switch (Process.platform) {
       case 'darwin':
       case 'linux':
-        g_ccachePath = (await Exec.getExecOutput("which ccache", [], execOptions)).stdout.trim();
+        g_ccachePath = (await Exec.getExecOutput("which ccache", undefined, execOptions)).stdout.trim();
         break;
       case 'win32':
         switch (Core.getInput("windows_compile_environment")) {
           case 'msvc':
-            g_ccachePath = (await Exec.getExecOutput("where ccache", [], execOptions)).stdout.trim();
+            g_ccachePath = (await Exec.getExecOutput("where ccache", undefined, execOptions)).stdout.trim();
             break;
           case 'msys2':
-            g_ccachePath = (await Exec.getExecOutput(platformExecWrap("which ccache"), [], execOptions)).stdout.trim();
+            g_ccachePath = (await Exec.getExecOutput(platformExecWrap("which ccache"), undefined, execOptions)).stdout.trim();
             break;
         }
         break;
@@ -125,7 +125,7 @@ export async function getCcacheVersion(): Promise<number[]> {
     "silent": true
   };
 
-  const versionOutput = await Exec.getExecOutput(platformExecWrap(`${await getCcacheBinaryPath()} --version`), [], execOptions);
+  const versionOutput = await Exec.getExecOutput(platformExecWrap(`${await getCcacheBinaryPath()} --version`), undefined, execOptions);
   if (versionOutput.exitCode !== 0)
     return [];
 
@@ -142,7 +142,7 @@ export async function getMsysInstallationPath(): Promise<string> {
     "silent": true
   };
 
-  const pwdOutput = await Exec.getExecOutput(platformExecWrap("cd ~ && pwd -W"), [], execOptions);
+  const pwdOutput = await Exec.getExecOutput(platformExecWrap("cd ~ && pwd -W"), undefined, execOptions);
   if (pwdOutput.exitCode !== 0)
     return "";
 

@@ -244,7 +244,7 @@ export default async function main(): Promise<void> {
   }
   catch (error) {
     if (error instanceof Error)
-      Core.setFailed(error.message);
+      Core.warning(error.message);
   }
 }
 main();

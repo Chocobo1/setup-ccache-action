@@ -81,9 +81,16 @@ async function configureCcache() {
 async function installCcache() {
   await Core.group("Install ccache", async () => {
     switch (Process.platform) {
-      case 'darwin':
-        await Exec.exec("brew install ccache");
-        break;
+      case 'darwin': {
+        const execOptions = {
+          "env": {
+            "HOMEBREW_NO_INSTALL_CLEANUP": "1",
+            "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
+          }
+        };
+        await Exec.exec("brew install ccache", undefined, execOptions);
+      }
+      break;
 
       case 'linux':
         await Exec.exec(Utils.sudoCommandWrap("apt install -y ccache"));

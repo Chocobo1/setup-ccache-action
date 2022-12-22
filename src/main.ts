@@ -80,35 +80,41 @@ async function configureCcache() {
 
 async function installCcache() {
   await Core.group("Install ccache", async () => {
-    switch (Process.platform) {
-      case 'darwin': {
-        const execOptions = {
-          "env": {
-            "HOMEBREW_NO_INSTALL_CLEANUP": "1",
-            "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
-          }
-        };
-        await Exec.exec("brew install ccache", undefined, execOptions);
-      }
-      break;
-
-      case 'linux':
-        await Exec.exec(Utils.sudoCommandWrap("apt install -y ccache"));
-        break;
-
-      case 'win32':
-        switch (Core.getInput("windows_compile_environment")) {
-          case 'msvc':
-            await Exec.exec("choco install ccache -y");
-            break;
-          case 'msys2':
-            await Exec.exec(Utils.platformExecWrap(`pacman --sync --noconfirm ${Utils.msysPackagePrefix()}ccache`));
-            break;
+    try {
+      switch (Process.platform) {
+        case 'darwin': {
+          const execOptions = {
+            "env": {
+              "HOMEBREW_NO_INSTALL_CLEANUP": "1",
+              "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
+            }
+          };
+          await Exec.exec("brew install ccache", undefined, execOptions);
         }
         break;
 
-      default:
-        break;
+        case 'linux':
+          await Exec.exec(Utils.sudoCommandWrap("apt install -y ccache"));
+          break;
+
+        case 'win32':
+          switch (Core.getInput("windows_compile_environment")) {
+            case 'msvc':
+              await Exec.exec("choco install ccache -y");
+              break;
+            case 'msys2':
+              await Exec.exec(Utils.platformExecWrap(`pacman --sync --noconfirm ${Utils.msysPackagePrefix()}ccache`));
+              break;
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+    catch (error) {
+      if (error instanceof Error)
+        Core.warning(error.message);
     }
   });
 }

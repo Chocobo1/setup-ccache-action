@@ -1,0 +1,24 @@
+name: CodeQL scanning
+
+on: [pull_request, push]
+
+permissions:
+  security-events: write
+
+jobs:
+  Analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          config-file: ./.github/workflows/codeql_js.yaml
+          languages: javascript
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v2

@@ -1,0 +1,7 @@
+name: "CodeQL config for Javascript"
+
+paths:
+  - "src"
+
+queries:
+  - uses: security-and-quality

@@ -17,7 +17,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          config-file: ./.github/workflows/codeql_js.yaml
+          config-file: ./.github/workflows/codeql/js.yaml
           languages: javascript
 
       - name: Run CodeQL analysis

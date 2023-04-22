@@ -87,9 +87,12 @@ async function installCcache() {
             "env": {
               "HOMEBREW_NO_INSTALL_CLEANUP": "1",
               "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
-            }
+            },
+            "ignoreReturnCode": true
           };
-          await Exec.exec("brew install ccache", undefined, execOptions);
+          const exitCode = await Exec.exec("brew install ccache", undefined, execOptions);
+          if ((exitCode !== 0) && (exitCode !== 1))  // `brew` returns `1` even when installation succeeded
+            throw Error(`Error occurred at \`brew install\`. Exit code: "${exitCode}"`);
         }
         break;
 
@@ -115,6 +118,8 @@ async function installCcache() {
     catch (error) {
       if (error instanceof Error)
         Core.warning(error.message);
+      else
+        throw error;
     }
   });
 }

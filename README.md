@@ -3,6 +3,8 @@
 [GithubActionBadge]: https://github.com/Chocobo1/setup-ccache-action/actions/workflows/ci.yaml/badge.svg
 [GithubActionLink]: https://github.com/Chocobo1/setup-ccache-action/actions
 
+Please don't hesitate to give this project a star⭐ if it is useful to you!
+
 ## Basic usage
 If you have a simple workflow, the action can be used like this:
 ```yml

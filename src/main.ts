@@ -1,6 +1,7 @@
 import * as Cache from '@actions/cache';
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
+import * as OS from 'os';
 import * as Process from 'process';
 import * as Utils from './utils';
 
@@ -85,6 +86,7 @@ async function installCcache() {
         case 'darwin': {
           const execOptions = {
             "env": {
+              "HOME": OS.homedir(),  // https://github.com/Homebrew/brew/commit/4184546067cb33e8d4de3c0ce9b5e6f1ebf7daca
               "HOMEBREW_NO_INSTALL_CLEANUP": "1",
               "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
             },

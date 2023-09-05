@@ -80,7 +80,7 @@ outputs:
     description: "This variable will be set to `true` when there is an cache hit, otherwise `false`"
 
 runs:
-  using: "node16"
+  using: "node20"
   main: "dist/main/index.js"
   post: "dist/post/index.js"
 

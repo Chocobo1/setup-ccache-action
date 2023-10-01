@@ -144,5 +144,9 @@ export default async function main(): Promise<void> {
     if (error instanceof Error)
       Core.warning(error.message);
   }
+
+  // Workaround. This explicit `exit()` call isn't necessary. For unknown reason in node20, without it it will
+  // hang process up to 2 mins without any activity
+  Process.exit(0);
 }
 main();

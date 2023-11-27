@@ -1,6 +1,7 @@
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
 import * as FS from 'fs';
+import * as Github from '@actions/github';
 import * as OS from 'os';
 import * as Path from 'path';
 import * as Process from 'process';
@@ -17,14 +18,14 @@ function getDefaultCacheKeys(): string[] {
   const env = Process.env;
   const keys = [
     "setup-ccache-action",
-    env.GITHUB_WORKFLOW!,
-    env.GITHUB_JOB!,
+    Github.context.workflow,
+    Github.context.job,
     env.ImageOS!
   ];
 
   // let PR have its own cache series
   if (env.GITHUB_HEAD_REF!.length > 0)
-    keys.push(`${env.GITHUB_ACTOR}-${env.GITHUB_HEAD_REF}`);
+    keys.push(`${Github.context.actor}-${env.GITHUB_HEAD_REF}`);
 
   return keys;
 }

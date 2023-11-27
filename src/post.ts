@@ -17,9 +17,10 @@ async function removeStaleCache() {
     const token = Core.getInput("api_token");
     const octokit = Github.getOctokit(token);
 
-    const owner = Process.env.GITHUB_REPOSITORY_OWNER!;
-    const repo = Process.env.GITHUB_REPOSITORY!.slice(owner.length + 1);
-    const gitRef = Process.env.GITHUB_REF!;
+    const contextRepo = Github.context.repo;
+    const owner = contextRepo['owner'];
+    const repo = contextRepo['repo'];
+    const gitRef = Github.context.ref;
 
     let cacheList = [];
     try {

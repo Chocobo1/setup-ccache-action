@@ -2,7 +2,6 @@
   "name": "@Chocobo1/setup-ccache-action",
   "version": "1.4.1",
   "description": "Setup ccache on GitHub Actions",
-  "main": "dist/main/index.js",
   "author": "Chocobo1",
   "license": "MIT",
   "repository": {

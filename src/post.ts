@@ -3,7 +3,7 @@ import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
 import * as Github from '@actions/github';
 import * as Process from 'process';
-import * as Utils from './utils';
+import * as Utils from './utils.js';
 
 
 const MAX_UPLOAD_RETRIES = 10;

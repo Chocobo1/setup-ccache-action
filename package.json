@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/Chocobo1/setup-ccache-action.git"
   },
+  "type": "module",
   "homepage": "https://github.com/Chocobo1/setup-ccache-action",
   "bugs": "https://github.com/Chocobo1/setup-ccache-action/issues",
   "keywords": [

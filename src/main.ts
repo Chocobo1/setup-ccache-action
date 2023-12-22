@@ -214,13 +214,15 @@ export default async function main(): Promise<void> {
       return;
     }
 
-    if (Core.getBooleanInput("update_packager_index"))
-      await updatePackgerIndex();
-    else
-      Core.info("Skip update packager index...");
-
-    if (Core.getBooleanInput("install_ccache"))
+    if (Core.getBooleanInput("install_ccache")) {
+      if (Core.getBooleanInput("update_packager_index")) {
+        await updatePackgerIndex();
+      }
+      else {
+        Core.info("Skip update packager index...");
+      }
       await installCcache();
+    }
     else
       Core.info("Skip install ccache...");
 

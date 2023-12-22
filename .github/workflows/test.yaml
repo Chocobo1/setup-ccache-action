@@ -115,6 +115,44 @@ jobs:
           ./hello_world
 
 
+  ubuntu_cache_dir:
+    name: Ubuntu test cache_dir
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup ccache
+        id: setup_ccache
+        uses: ./
+        with:
+          ccache_options: |
+            cache_dir=${{ github.workspace }}/../.ccache
+
+      - name: Print environment
+        run: |
+          whoami
+          echo ~
+          env
+          pwd
+          df -h
+          echo "$PATH"
+          which ccache
+          which gcc
+          ccache --version
+          ccache --show-config
+          ccache --show-stats
+          ls -la "/usr/lib/ccache"
+          echo "${{ env.ccache_symlinks_path }}"
+          echo "${{ steps.setup_ccache.outputs.cache_hit }}"
+
+      - name: Build test program
+        run: |
+          g++ ".github/workflows/hello_world.cpp" -o "hello_world"
+          ./hello_world
+
+
   ubuntu_20_04:
     name: Ubuntu-20.04
     runs-on: ubuntu-20.04

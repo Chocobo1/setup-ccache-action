@@ -2,6 +2,7 @@ import * as Cache from '@actions/cache';
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
 import * as OS from 'os';
+import * as Path from 'path';
 import * as Process from 'process';
 import * as Utils from './utils.js';
 
@@ -66,17 +67,28 @@ async function configureCcache() {
   await Utils.removeCcacheConfig();
 
   const ccachePath = await Utils.getCcacheBinaryPath();
-  const settings = Core.getMultilineInput("ccache_options");
-  for (const setting of settings) {
-    const keyValue = setting.split("=", 2);
-    if (keyValue.length == 2) {
-      const [key, value] = keyValue;
-      await Exec.exec(Utils.platformExecWrap(`${ccachePath} --set-config "${key.trim()}=${value.trim()}"`));
-    }
-  }
+  const options = getUserCcacheOptions();
+  for (const [key, value] of options)
+    await Exec.exec(Utils.platformExecWrap(`${ccachePath} --set-config "${key}=${value}"`));
 
   // `--show-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
   await Exec.exec(Utils.platformExecWrap(`${ccachePath} -p`));
+}
+
+let g_userCcacheOptions: Map<string, string>;
+function getUserCcacheOptions(): Map<string, string> {
+  if (g_userCcacheOptions === undefined) {
+    g_userCcacheOptions = new Map();
+    const settings = Core.getMultilineInput("ccache_options");
+    for (const setting of settings) {
+      const keyValue = setting.split("=", 2);
+      if (keyValue.length == 2) {
+        const [key, value] = keyValue;
+        g_userCcacheOptions.set(key.trim(), value.trim());
+      }
+    }
+  }
+  return g_userCcacheOptions;
 }
 
 async function installCcache() {
@@ -128,7 +140,11 @@ async function installCcache() {
 
 async function restoreCache(): Promise<boolean> {
   return await Core.group("Restore cache", async (): Promise<boolean> => {
-    const paths = [await Utils.getCachePath()];
+    const paths = await (async () => {
+      const options = getUserCcacheOptions();
+      const userDefinedDir = options.get("cache_dir");
+      return [Path.normalize(userDefinedDir ?? await Utils.getCachePath())];
+    })();
     const primaryKey = Utils.getOverrideCacheKey().value;
     const restoreKeys = Utils.getOverrideCacheKeyFallback();
 

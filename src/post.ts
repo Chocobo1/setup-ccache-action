@@ -2,6 +2,7 @@ import * as Cache from '@actions/cache';
 import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
 import * as Github from '@actions/github';
+import * as Path from 'path';
 import * as Process from 'process';
 import * as Utils from './utils.js';
 
@@ -81,7 +82,7 @@ async function saveCache(): Promise<boolean> {
   return await Core.group("Store cache", async () => {
     Utils.removeCcacheConfig();
 
-    const paths = [await Utils.getCachePath()];
+    const paths = [Path.normalize(await Utils.getCachePath())];
 
     // the cache is immutable by design:
     // https://docs.microsoft.com/en-us/azure/devops/pipelines/release/caching?view=azure-devops#use-cache-task

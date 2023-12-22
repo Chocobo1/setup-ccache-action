@@ -228,6 +228,10 @@ export default async function main(): Promise<void> {
       await checkCcacheAvailability();
     });
 
+    await Core.group("Configure ccache", async () => {
+      await configureCcache();
+    });
+
     let cacheHit = false;
     if (Core.getBooleanInput("restore_cache"))
       cacheHit = await restoreCache();
@@ -236,10 +240,6 @@ export default async function main(): Promise<void> {
 
     await Core.group(`Set output variable: cache_hit="${cacheHit}"`, async () => {
       Core.setOutput("cache_hit", cacheHit.toString());
-    });
-
-    await Core.group("Configure ccache", async () => {
-      await configureCcache();
     });
 
     await Core.group("Clear ccache statistics", async () => {

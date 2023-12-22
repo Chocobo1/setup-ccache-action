@@ -52,7 +52,8 @@ For description of all options, take a look at [action.yml](action.yml).
 
 * `install_ccache` \
   By default, this action will install ccache with package manager. \
-  You can omit installation if you've already installed ccache and it is accessible in the shell.
+  You can omit installation if you've already installed ccache and it is accessible from the shell.
+  If you use `false` for this option, it is likely you also want to set `update_packager_index` to `false` too.
   ```yml
   - name: Checkout repository
     uses: actions/checkout@v2

@@ -46,13 +46,13 @@ jobs:
           ccache --version
           ccache --show-config
           ccache --show-stats
-          ls -la "/usr/local/opt/ccache/libexec"
+          ls -la "$(brew --prefix ccache)/libexec"
           echo "${{ env.ccache_symlinks_path }}"
           echo "${{ steps.setup_ccache.outputs.cache_hit }}"
 
       - name: Build test program
         run: |
-          #export PATH="/usr/local/opt/ccache/libexec:$PATH"
+          #export PATH="$(brew --prefix ccache)/libexec:$PATH"
           g++ ".github/workflows/hello_world.cpp" -o "hello_world"
           ./hello_world
 

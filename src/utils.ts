@@ -98,8 +98,13 @@ export async function getCcacheConfigPath(): Promise<string> {
 
 export async function getCcacheSymlinksPath(): Promise<string> {
   switch (Process.platform) {
-    case 'darwin':
-      return "/usr/local/opt/ccache/libexec";
+    case 'darwin': {
+      const execOptions = {
+        "silent": true
+      };
+      const ccachePrefix = (await Exec.getExecOutput("brew --prefix ccache", undefined, execOptions)).stdout.trim();
+      return `${ccachePrefix}/libexec`;
+    }
     case 'linux':
       return "/usr/lib/ccache";
     case 'win32':

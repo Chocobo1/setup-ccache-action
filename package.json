@@ -32,11 +32,12 @@
     "@actions/io": "^1.1.3"
   },
   "devDependencies": {
+    "@eslint/js": "*",
+    "@stylistic/eslint-plugin": "*",
     "@types/node": "*",
-    "@typescript-eslint/eslint-plugin": "*",
-    "@typescript-eslint/parser": "*",
     "@vercel/ncc": "*",
     "eslint": "*",
-    "typescript": "*"
+    "typescript": "*",
+    "typescript-eslint": "*"
   }
 }

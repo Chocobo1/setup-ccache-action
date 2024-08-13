@@ -19,14 +19,14 @@ async function removeStaleCache() {
     const octokit = Github.getOctokit(token);
 
     const contextRepo = Github.context.repo;
-    const owner = contextRepo['owner'];
-    const repo = contextRepo['repo'];
+    const owner = contextRepo.owner;
+    const repo = contextRepo.repo;
     const gitRef = Github.context.ref;
 
     let cacheList = [];
     try {
       const cacheKeyPrefix = storedCacheKey.slice(0, storedCacheKey.lastIndexOf('_'));
-      const result = (await octokit.request("GET /repos/{owner}/{repo}/actions/caches{?per_page,page,ref,key,sort,direction}", {
+      const result = (await octokit.rest.actions.getActionsCacheList({
         owner: owner,
         repo: repo,
         ref: gitRef,
@@ -35,41 +35,40 @@ async function removeStaleCache() {
         direction: "asc"
       })).data;
 
-      cacheList = result["actions_caches"];
+      cacheList = result.actions_caches;
     }
     catch (error) {
-      Core.info(`Error occurred when listing cache entries. Error: "${error}"`);
+      Core.info(`Error occurred when listing cache entries. Error: "${error}"`);  // eslint-disable-line @typescript-eslint/restrict-template-expressions
       return;
     }
 
     const getTimestamp = (str: string): number => parseInt(str.slice(str.lastIndexOf('_') + 1), 10);
     const storedCacheTimestamp = getTimestamp(storedCacheKey);
-    // TODO: remove type definition for `cache`. Possibly https://github.com/octokit/types.ts hasn't updated yet
-    cacheList = cacheList.filter((cache: Record<string, any>) => {
-      const cacheTimestamp = getTimestamp(cache["key"]);
+    cacheList = cacheList.filter((cache) => {
+      const cacheTimestamp = getTimestamp(cache.key!);
       return (cacheTimestamp < storedCacheTimestamp);
     });
 
-    Core.info(`Number of stale caches found: ${cacheList.length}`);
+    Core.info(`Number of stale caches found: ${cacheList.length.toString()}`);
 
     const removedKeys = [];
     for (const cache of cacheList) {
-      const key = cache["key"];
+      const key = cache.key!;
 
       try {
         // This will fail for Pull Requests, due to: https://github.com/actions/first-interaction/issues/10
-        const result = (await octokit.request("DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}", {
+        const result = (await octokit.rest.actions.deleteActionsCacheByKey({
           owner: owner,
           repo: repo,
           key: key,
           ref: gitRef
         })).data;
 
-        for (const entry of result["actions_caches"])
-          removedKeys.push(entry["key"]);
+        for (const entry of result.actions_caches)
+          removedKeys.push(entry.key);
       }
       catch (error) {
-        Core.info(`Error occurred when removing stale cache. Key: "${key}". Error: "${error}"`);
+        Core.info(`Error occurred when removing stale cache. Key: "${key}". Error: "${error}"`);  // eslint-disable-line @typescript-eslint/restrict-template-expressions
       }
     }
 
@@ -80,7 +79,7 @@ async function removeStaleCache() {
 
 async function saveCache(): Promise<boolean> {
   return await Core.group("Store cache", async () => {
-    Utils.removeCcacheConfig();
+    await Utils.removeCcacheConfig();
 
     const paths = [Path.normalize(await Utils.getCachePath())];
 
@@ -90,8 +89,8 @@ async function saveCache(): Promise<boolean> {
     // https://github.com/actions/cache/blob/6bbe742add91b3db4abf110e742a967ec789958f/src/save.ts#L39-L44
     for (let i = 0; i < MAX_UPLOAD_RETRIES; ++i) {
       try {
-        const key = `${Utils.getOverrideCacheKey().value}_${Date.now()}`;
-        Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths}"`);
+        const key = `${Utils.getOverrideCacheKey().value}_${Date.now().toString()}`;
+        Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths.toString()}"`);
 
         await Cache.saveCache(paths, key);
         storedCacheKey = key;
@@ -99,9 +98,9 @@ async function saveCache(): Promise<boolean> {
       }
       catch (error) {
         if (error instanceof Cache.ReserveCacheError)
-          Core.info(`Upload error: "${error}". Error message: "${error.message}". Retry ${i + 1}...`);
+          Core.info(`Upload error: "${error.name}". Error message: "${error.message}". Retry ${(i + 1).toString()}...`);
         else if (error instanceof Error)
-          Core.warning(`Upload error: "${error}". Error message: "${error.message}". Retry ${i + 1}...`);
+          Core.warning(`Upload error: "${error.name}". Error message: "${error.message}". Retry ${(i + 1).toString()}...`);
         else
           throw error;
       }
@@ -151,4 +150,4 @@ export default async function main(): Promise<void> {
   // hang process up to 2 mins without any activity
   Process.exit(0);
 }
-main();
+await main();

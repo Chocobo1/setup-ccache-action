@@ -23,7 +23,7 @@ async function addSymlinksToPath() {
         const symlinks = await Utils.getCcacheSymlinksPath();
         Core.info(`ccache symlinks path: "${symlinks}"`);
         Core.addPath(symlinks);
-        Core.info(`PATH=${Process.env.PATH}`);
+        Core.info(`PATH=${Process.env.PATH!}`);
         break;
       }
       case 'win32':
@@ -77,7 +77,7 @@ async function configureCcache() {
 
 let g_userCcacheOptions: Map<string, string>;
 function getUserCcacheOptions(): Map<string, string> {
-  if (g_userCcacheOptions === undefined) {
+  if (g_userCcacheOptions === undefined) {  // eslint-disable-line @typescript-eslint/no-unnecessary-condition
     g_userCcacheOptions = new Map();
     const settings = Core.getMultilineInput("ccache_options");
     for (const setting of settings) {
@@ -106,7 +106,7 @@ async function installCcache() {
           };
           const exitCode = await Exec.exec("brew install ccache", undefined, execOptions);
           if ((exitCode !== 0) && (exitCode !== 1))  // `brew` returns `1` even when installation succeeded
-            throw Error(`Error occurred at \`brew install\`. Exit code: "${exitCode}"`);
+            throw Error(`Error occurred at \`brew install\`. Exit code: "${exitCode.toString()}"`);
         }
         break;
 
@@ -148,7 +148,7 @@ async function restoreCache(): Promise<boolean> {
     const primaryKey = Utils.getOverrideCacheKey().value;
     const restoreKeys = Utils.getOverrideCacheKeyFallback();
 
-    Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys}", \`paths\`: "${paths}"`);
+    Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys.toString()}", \`paths\`: "${paths.toString()}"`);
     try {
       const cacheKey = await Cache.restoreCache(paths, primaryKey, restoreKeys);
       if (cacheKey) {
@@ -250,7 +250,7 @@ export default async function main(): Promise<void> {
     else
       Core.info("Skip restore cache...");
 
-    await Core.group(`Set output variable: cache_hit="${cacheHit}"`, async () => {
+    await Core.group(`Set output variable: cache_hit="${cacheHit.toString()}"`, async () => {  // eslint-disable-line @typescript-eslint/require-await
       Core.setOutput("cache_hit", cacheHit.toString());
     });
 
@@ -276,4 +276,4 @@ export default async function main(): Promise<void> {
       Core.warning(error.message);
   }
 }
-main();
+await main();

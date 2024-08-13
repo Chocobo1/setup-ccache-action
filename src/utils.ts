@@ -25,7 +25,7 @@ function getDefaultCacheKeys(): string[] {
 
   // let PR have its own cache series
   if (env.GITHUB_HEAD_REF!.length > 0)
-    keys.push(`${Github.context.actor}-${env.GITHUB_HEAD_REF}`);
+    keys.push(`${Github.context.actor}-${env.GITHUB_HEAD_REF!}`);
 
   return keys;
 }
@@ -44,7 +44,7 @@ export async function getCachePath(): Promise<string> {
 
   // parse the output manually since `--get-config` is not available on older ccache versions: ubuntu-18.04 have ccache 3.4.1
   const configOutput = await Exec.getExecOutput(platformExecWrap(`${ccachePath} -p`), undefined, execOptions);
-  return configOutput.stdout.match(/(?<=cache_dir = ).+/)![0].trim();
+  return /(?<=cache_dir = ).+/.exec(configOutput.stdout)![0].trim();
 }
 
 let g_ccachePath = "";
@@ -135,7 +135,7 @@ export async function getCcacheVersion(): Promise<number[]> {
   if (versionOutput.exitCode !== 0)
     return [];
 
-  const match = versionOutput.stdout.match(/version (.*)/);
+  const match = /version (.*)/.exec(versionOutput.stdout);
   if (!match || (match.length < 2))
     return [];
 
@@ -242,7 +242,7 @@ export async function removeCcacheConfig(): Promise<void> {
   try {
     FS.unlinkSync(await getCcacheConfigPath());
   }
-  catch (error) {
+  catch (_error) {
     // silence it
   }
 }

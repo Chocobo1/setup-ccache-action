@@ -92,7 +92,12 @@ async function saveCache(): Promise<boolean> {
         const key = `${Utils.getOverrideCacheKey().value}_${Date.now().toString()}`;
         Core.info(`Using \`key\`: "${key}", \`paths\`: "${paths.toString()}"`);
 
-        await Cache.saveCache(paths, key);
+        const cacheID = await Cache.saveCache(paths, key);
+        if (cacheID < 0) {
+          Core.info(`Upload error: invalid cache ID. Retry ${(i + 1).toString()}...`);
+          continue;
+        }
+
         storedCacheKey = key;
         return true;
       }

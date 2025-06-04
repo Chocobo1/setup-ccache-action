@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "ncc build src/main.ts -o dist/main --minify --source-map & ncc build src/post.ts -o dist/post --minify --source-map & wait",
-    "lint": "eslint src/*.ts"
+    "lint": "eslint --cache src/*.ts"
   },
   "dependencies": {
     "@actions/cache": "^4.0.3",

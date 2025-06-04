@@ -153,9 +153,9 @@ jobs:
           ./hello_world
 
 
-  ubuntu_20_04:
-    name: Ubuntu-20.04
-    runs-on: ubuntu-20.04
+  ubuntu_missing_permissions:
+    name: Ubuntu missing permissions
+    runs-on: ubuntu-latest
     permissions: {}  # test for missing permission for `remove_stale_cache`
 
     steps:

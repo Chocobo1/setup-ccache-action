@@ -3,7 +3,6 @@ import * as Core from '@actions/core';
 import * as Exec from '@actions/exec';
 import * as Github from '@actions/github';
 import * as Path from 'path';
-import * as Process from 'process';
 import * as Utils from './utils.js';
 
 
@@ -150,9 +149,5 @@ export default async function main(): Promise<void> {
     if (error instanceof Error)
       Core.warning(error.message);
   }
-
-  // Workaround. This explicit `exit()` call isn't necessary. For unknown reason in node20, without it it will
-  // hang process up to 2 mins without any activity
-  Process.exit(0);
 }
 await main();

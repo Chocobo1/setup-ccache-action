@@ -99,6 +99,7 @@ async function installCcache() {
           const execOptions = {
             "env": {
               "HOME": OS.homedir(),  // https://github.com/Homebrew/brew/commit/4184546067cb33e8d4de3c0ce9b5e6f1ebf7daca
+              "HOMEBREW_DOWNLOAD_CONCURRENCY": "auto",
               "HOMEBREW_NO_INSTALL_CLEANUP": "1",
               "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"
             },

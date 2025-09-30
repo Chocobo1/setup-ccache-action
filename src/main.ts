@@ -105,7 +105,7 @@ async function installCcache() {
             },
             "ignoreReturnCode": true
           };
-          const exitCode = await Exec.exec("brew install ccache", undefined, execOptions);
+          const exitCode = await Exec.exec("brew install --force-bottle ccache", undefined, execOptions);
           if ((exitCode !== 0) && (exitCode !== 1))  // `brew` returns `1` even when installation succeeded
             throw Error(`Error occurred at \`brew install\`. Exit code: "${exitCode.toString()}"`);
         }

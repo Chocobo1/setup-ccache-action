@@ -27,8 +27,8 @@ For description of all options, take a look at [action.yml](action.yml).
 * `update_packager_index` \
   By default, this action will update packager's indexes to avoid installation issues
   (`apt`/`brew` on linux/macOS respectively). \
-  You can disable it to save some time however you are then responsible for ensuring the packager's
-  indexes are up-to-date *before* using this action.
+  You can set it to `false` to save some time but then you are responsible for ensuring the packager's
+  indexes were up-to-date *before* using this action.
   ```yml
   - name: Checkout repository
     uses: actions/checkout@v2
@@ -161,6 +161,21 @@ For description of all options, take a look at [action.yml](action.yml).
           .
         cmake --build _build
     ```
+
+## Tips
+* Unsupported, outdated macOS version \
+  If you are using an anicent verion of macOS and homebrew already [dropped support][homebrew doc support] for it,
+  you can set `update_packager_index: false` so that this action will reuse the existing prebuilt package
+  rather than rebuilding ccache from scratch, which will take a long time.
+  Note that you should not run `brew update` anymore to avoid further issues on the outdated macOS.
+  ```yaml
+  - name: Setup ccache
+    uses: Chocobo1/setup-ccache-action@v1
+    with:
+      update_packager_index: false
+  ```
+
+  [homebrew doc support]: https://docs.brew.sh/Support-Tiers#future-macos-support
 
 ## Limitations
 This action support running on Ubuntu (`ubuntu-*`) and macOS (`macos-*`). \

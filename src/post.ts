@@ -22,7 +22,7 @@ async function removeStaleCache() {
     const repo = contextRepo.repo;
     const gitRef = Github.context.ref;
 
-    let cacheList = [];
+    let cacheList = [];  // eslint-disable-line no-useless-assignment
     try {
       const cacheKeyPrefix = storedCacheKey.slice(0, storedCacheKey.lastIndexOf('_'));
       const result = (await octokit.rest.actions.getActionsCacheList({

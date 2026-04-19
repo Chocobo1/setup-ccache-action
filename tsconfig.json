@@ -5,6 +5,7 @@
         "module": "nodenext",
         "noImplicitAny": true,
         "removeComments": true,
+        "rootDir": "src",
         "strict": true,
         "target": "es2022"
     }

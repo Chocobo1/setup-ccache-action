@@ -83,7 +83,7 @@ runs:
   using: "node24"
   main: "dist/main/index.js"
   post: "dist/post/index.js"
-  post-if: job.status == 'cancelled'
+  post-if: job.status != 'cancelled'
 
 branding:
   icon: "package"

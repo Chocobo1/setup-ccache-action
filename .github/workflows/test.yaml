@@ -217,7 +217,8 @@ jobs:
             -B _build `
             -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH="${{ env.ccache_symlinks_path }}" `
+            -DCMAKE_C_COMPILER_LAUNCHER="${{ env.ccache_symlinks_path }}" `
+            -DCMAKE_CXX_COMPILER_LAUNCHER="${{ env.ccache_symlinks_path }}" `
             .github/workflows
           cmake `
             --build _build

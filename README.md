@@ -130,7 +130,8 @@ For description of all options, take a look at [action.yml](action.yml).
           -B _build `
           -G "Ninja" `
           -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH="${{ env.ccache_symlinks_path }}" `
+          -DCMAKE_C_COMPILER_LAUNCHER="${{ env.ccache_symlinks_path }}" `
+          -DCMAKE_CXX_COMPILER_LAUNCHER="${{ env.ccache_symlinks_path }}" `
           .
         cmake --build _build
     ```

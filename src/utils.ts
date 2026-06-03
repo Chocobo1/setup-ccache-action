@@ -140,7 +140,7 @@ export async function getCcacheVersion(): Promise<number[]> {
     return [];
 
   const versionString = match[1];
-  return versionString.split('.').map(parseInt);
+  return versionString.split('.').map(part => parseInt(part, 10));
 }
 
 export async function getMsysInstallationPath(): Promise<string> {

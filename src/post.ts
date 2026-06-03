@@ -146,6 +146,7 @@ export default async function main(): Promise<void> {
     }
   }
   catch (error) {
+    // show warnings but suppress hard error
     if (error instanceof Error)
       Core.warning(error.message);
   }

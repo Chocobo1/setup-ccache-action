@@ -217,7 +217,11 @@ async function updatePackgerIndex() {
 
 export default async function main(): Promise<void> {
   // hide annoying nodejs deprecation warnings
-  Process.removeAllListeners('warning');
+  Process.on('warning', (warning) => {
+    if (warning.name === 'DeprecationWarning')
+      return;
+    console.warn(warning);
+  });
 
   try {
     if (!Utils.isSupportedPlatform()) {

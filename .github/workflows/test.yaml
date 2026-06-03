@@ -278,12 +278,14 @@ jobs:
           cat ~/.bash_profile
 
       - name: Build test program (direct)
+        if: ${{ !cancelled() }}
         shell: msys2 {0}
         run: |
           g++ ".github/workflows/hello_world.cpp" -o "hello_world"
           ./hello_world
 
       - name: Build test program (cmake)
+        if: ${{ !cancelled() }}
         shell: msys2 {0}
         run: |
           cmake \

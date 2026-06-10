@@ -9,7 +9,7 @@ Please don't hesitate to give this project a star⭐ if it is useful to you!
 If you have a simple workflow, the action can be used like this:
 ```yml
 - name: Checkout repository
-  uses: actions/checkout@v2
+  uses: actions/checkout@v6
 
 - name: Setup ccache
   uses: Chocobo1/setup-ccache-action@v1
@@ -31,7 +31,7 @@ For description of all options, take a look at [action.yml](action.yml).
   indexes were up-to-date *before* using this action.
   ```yml
   - name: Checkout repository
-    uses: actions/checkout@v2
+    uses: actions/checkout@v6
 
   - name: Install dependencies
     run: |
@@ -56,7 +56,7 @@ For description of all options, take a look at [action.yml](action.yml).
   If you use `false` for this option, it is likely you also want to set `update_packager_index` to `false` too.
   ```yml
   - name: Checkout repository
-    uses: actions/checkout@v2
+    uses: actions/checkout@v6
 
   - name: Install dependencies
     run: |

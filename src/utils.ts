@@ -247,6 +247,10 @@ export async function removeCcacheConfig(): Promise<void> {
   }
 }
 
+export async function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 export function sudoCommandWrap(command: string): string {
   return ((Process.getuid!() !== 0) ? "sudo " : "") + command;
 }

@@ -139,6 +139,8 @@ async function installCcache() {
   });
 }
 
+const MAX_RESTORE_RETRIES = 3;
+
 async function restoreCache(): Promise<boolean> {
   return await Core.group("Restore cache", async (): Promise<boolean> => {
     const paths = await (async () => {
@@ -149,24 +151,44 @@ async function restoreCache(): Promise<boolean> {
     const primaryKey = Utils.getOverrideCacheKey().value;
     const restoreKeys = Utils.getOverrideCacheKeyFallback();
 
-    Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys.toString()}", \`paths\`: "${paths.toString()}"`);
-    try {
-      const cacheKey = await Cache.restoreCache(paths, primaryKey, restoreKeys);
-      if (cacheKey) {
-        Core.info(`Cache found at: "${cacheKey}"`);
-        Core.exportVariable(Utils.foundCacheKey, cacheKey);
+    for (let attempt = 0; attempt <= MAX_RESTORE_RETRIES; ++attempt) {
+      Core.info(`Retrieving cache with \`primaryKey\`: "${primaryKey}", \`restoreKeys\`: "${restoreKeys.toString()}", \`paths\`: "${paths.toString()}"`);
+      try {
+        const cacheKey = await Cache.restoreCache(paths, primaryKey, restoreKeys);
+        if (cacheKey !== undefined) {
+          Core.info(`Cache found at: "${cacheKey}"`);
+          Core.exportVariable(Utils.foundCacheKey, cacheKey);
+          return true;
+        }
+
+        // possible situations:
+        // 1. the cache does not exist
+        // 2. the `restoreCache` was interrupted (by delete cache operation)
+
+        await Utils.sleep(1000);
+        const existingKey = await Cache.restoreCache(paths, primaryKey, restoreKeys, { lookupOnly: true });
+        if (existingKey === undefined) {
+          // situation 1
+          Core.info("Cache not found...");
+          return false;
+        }
+
+        // situation 2: continue retry
       }
-      else {
-        Core.info("Cache not found...");
+      catch (error) {
+        if (error instanceof Error)
+          Core.warning(`Error occurred in \`Cache.restoreCache()\`. Error message: "${error.message}"`);
+        else
+          throw error;
       }
-      return cacheKey ? true : false;
+
+      if (attempt < MAX_RESTORE_RETRIES) {
+        Core.info(`Retrying restore cache (attempt ${(attempt + 1).toString()} of ${MAX_RESTORE_RETRIES.toString()})...`);
+        await Utils.sleep(3000);
+      }
     }
-    catch (error) {
-      if (error instanceof Error)
-        Core.warning(`Error occurred in \`Cache.restoreCache()\`. Error message: "${error.message}"`);
-      else
-        throw error;
-    }
+
+    Core.info("Restore cache failed.");
     return false;
   });
 }

@@ -10,8 +10,7 @@ import * as Utils from './utils.js';
 async function addSymlinksToPath() {
   const windowsCompileEnvironment = Core.getInput("windows_compile_environment");
 
-  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc'))
-  {
+  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc')) {
     // `choco` installer already put it on %PATH%
     return;
   }
@@ -207,8 +206,7 @@ async function setOutputVariables() {
 async function updatePackgerIndex() {
   const windowsCompileEnvironment = Core.getInput("windows_compile_environment");
 
-  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc'))
-  {
+  if ((Process.platform === 'win32') && (windowsCompileEnvironment === 'msvc')) {
     // `choco` installer doesn't need this
     return;
   }
@@ -290,7 +288,7 @@ export default async function main(): Promise<void> {
     });
 
     if (Core.getBooleanInput("prepend_symlinks_to_path"))
-        await addSymlinksToPath();
+      await addSymlinksToPath();
     else
       Core.info("Skip prepend ccache symlinks path to $PATH...");
 

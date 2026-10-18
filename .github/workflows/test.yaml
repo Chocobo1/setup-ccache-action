@@ -209,7 +209,9 @@ jobs:
           echo "${{ steps.setup_ccache.outputs.cache_hit }}"
 
       - name: Setup devcmd
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
 
       - name: Build test program
         run: |
@@ -236,10 +238,11 @@ jobs:
       - name: Setup msys2
         uses: msys2/setup-msys2@v2
         with:
+          msystem: UCRT64
           install: |
             make
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
 
       - name: Print environment (system)
         run: |

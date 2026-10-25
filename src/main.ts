@@ -301,5 +301,8 @@ export default async function main(): Promise<void> {
     if (error instanceof Error)
       Core.warning(error.message);
   }
+
+  // Workaround for https://github.com/actions/toolkit/issues/2470
+  Process.exit(0);
 }
 await main();
